@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>OKNG Monitor v3</title>
-<meta name="description" content="ระบบเก็บข้อมูลการเทสเครื่องเทียบสี — ติดตาม OK/NG, LOCK, ล็อตงาน และรายงานรายสถานี">
+<meta name="description" content="ระบบเก็บข้อมูลการเทสเครื่องเทียบสี — ต่อกับ Supabase Realtime">
 <meta name="theme-color" content="#f4f6fb">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f56e0'/%3E%3Ctext x='16' y='22' font-family='system-ui' font-size='15' font-weight='800' fill='%23fff' text-anchor='middle'%3EH%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15,21 +15,43 @@
 <body>
 <a class="skip" href="#main">ข้ามไปเนื้อหาหลัก</a>
 
-<div class="shell">
+<!-- ===================== login gate ===================== -->
+<div id="gate" class="gate" hidden>
+  <form id="loginForm" class="gate-card">
+    <div class="brand gate-brand">
+      <span class="brand-mark">HET</span>
+      <span class="brand-name">เครื่องเทียบสี</span>
+    </div>
+    <h1>เข้าสู่ระบบ</h1>
+    <p class="gate-sub">ระบบเก็บข้อมูลการเทส — ต้องเข้าสู่ระบบก่อนดูข้อมูลเครื่อง</p>
 
-  <!-- ===================== sidebar ===================== -->
+    <label class="field gate-field">อีเมล
+      <input id="email" class="inp" type="email" autocomplete="username" required>
+    </label>
+    <label class="field gate-field">รหัสผ่าน
+      <input id="password" class="inp" type="password" autocomplete="current-password" required>
+    </label>
+
+    <p id="loginError" class="gate-error" role="alert" hidden></p>
+    <button id="btnLogin" class="b b-primary gate-btn" type="submit">เข้าสู่ระบบ</button>
+    <p class="gate-foot">Color Inspection System · Supabase Realtime</p>
+  </form>
+</div>
+
+<!-- ===================== app ===================== -->
+<div id="app" class="shell" hidden>
+
   <aside class="side">
     <div class="brand">
       <span class="brand-mark">HET</span>
       <span class="brand-name">เครื่องเทียบสี</span>
     </div>
 
-    <label class="field">สถานี
-      <select id="stationSelect" class="sel"></select>
-    </label>
-
-    <button id="btnRemove" class="b b-danger" type="button">ลบสถานีนี้</button>
-    <button id="btnRestore" class="b b-soft" type="button">คืนค่าสถานีที่ลบ</button>
+    <p class="side-label">อุปกรณ์</p>
+    <div id="deviceCard" class="device">
+      <strong>ST-001 · เครื่องเทียบสี</strong>
+      <span id="deviceSub">กำลังเชื่อมต่อ…</span>
+    </div>
 
     <p class="side-label">เมนูหลัก</p>
     <nav id="nav" class="nav" aria-label="เมนูหลัก"></nav>
@@ -39,7 +61,7 @@
         <span class="health-dot" aria-hidden="true"></span>
         <div class="health-text">
           <strong>สถานะเครื่อง</strong>
-          <span id="healthText">heartbeat ปกติ</span>
+          <span id="healthText">กำลังตรวจสอบ…</span>
         </div>
       </div>
 
@@ -60,21 +82,22 @@
       </label>
 
       <button id="btnTv" class="b b-soft" type="button">โหมด TV</button>
+      <button id="btnLogout" class="b b-soft" type="button">ออกจากระบบ</button>
     </div>
   </aside>
 
-  <!-- ===================== main ===================== -->
   <main id="main">
     <header class="topbar">
       <p class="crumb"><span>ระบบเก็บข้อมูลการเทส</span><i aria-hidden="true">›</i><b id="crumbView">แดชบอร์ด</b></p>
+      <span id="liveBadge" class="live" data-state="off"><span class="live-dot" aria-hidden="true"></span><span id="liveText">OFFLINE</span></span>
       <button id="btnRefresh" class="b b-soft" type="button">⟳ รีเฟรช</button>
       <button id="btnExport" class="b b-primary" type="button">↓ Export CSV</button>
-      <input id="search" class="search" type="search" placeholder="ค้นหา event / สถานี…" aria-label="ค้นหา event หรือสถานี">
+      <input id="search" class="search" type="search" placeholder="ค้นหา event…" aria-label="ค้นหา event">
     </header>
 
     <div class="page">
       <div class="page-head">
-        <h1 id="stationTitle">—</h1>
+        <h1 id="stationTitle">ST-001 · เครื่องเทียบสี</h1>
         <p id="stationSub">ภาพรวมผลการเทสวันนี้</p>
       </div>
 
@@ -87,17 +110,21 @@
         <button id="btnClearLock" class="b b-ghost-light" type="button">เคลียร์ NG/LOCK</button>
       </section>
 
+      <p id="banner" class="banner" role="alert" hidden></p>
+
       <div id="view"></div>
 
       <footer class="foot">
         <span>Color Inspection System · Supabase Realtime</span>
-        <span id="stationCount">—</span>
+        <span id="deviceStamp">—</span>
       </footer>
     </div>
   </main>
 
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="assets/config.js"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>

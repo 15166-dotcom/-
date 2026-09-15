@@ -8,18 +8,25 @@ const path = require('path');
 
 const html = fs.readFileSync('index.html', 'utf8');
 const css = fs.readFileSync('assets/styles.css', 'utf8');
+const cfg = fs.readFileSync('assets/config.js', 'utf8');
 const js = fs.readFileSync('assets/app.js', 'utf8');
 
 const body = html
   .replace(/[\s\S]*<body>/, '')
   .replace(/<\/body>[\s\S]*/, '')
-  .replace(/\s*<script src="assets\/app\.js"><\/script>/, '')
+  .replace(/\s*<script src="assets\/(config|app)\.js"><\/script>/g, '')
   .trim();
 
 const fontLink = '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&family=Prompt:wght@400;600;700;800&family=IBM+Plex+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">';
 
 const head = ['<title>OKNG Monitor v3</title>', fontLink, '<style>', css.trim(), '</style>'].join('\n');
-const page = [body, '<script>', js.trim(), '<' + '/script>'].join('\n');
+const sdk = '<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"><' + '/script>';
+const page = [
+  body.replace(/\s*<script src="https:\/\/cdn\.jsdelivr[^>]*><\/script>/, ''),
+  sdk,
+  '<script>', cfg.trim(), '<' + '/script>',
+  '<script>', js.trim(), '<' + '/script>'
+].join('\n');
 
 const standalone = [
   '<!doctype html>',

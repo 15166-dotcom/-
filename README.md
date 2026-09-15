@@ -46,7 +46,38 @@ node build.js                 # สร้าง dist/
 python3 -m http.server 8080   # เปิด http://localhost:8080
 ```
 
-## ต่อข้อมูลจริง
+## ต่อกับ Supabase
+
+แดชบอร์ดอ่านข้อมูลสดจาก 3 ตาราง และต้องล็อกอินก่อน เพราะ RLS เปิดสิทธิ์อ่านให้เฉพาะ `authenticated`
+
+| ตาราง | แดชบอร์ดใช้ทำอะไร |
+|---|---|
+| `status` (แถวเดียว id=1) | KPI, เกจล็อต, สถานะ I/O (d9/d11/d12/full_counter), heartbeat |
+| `event_log` | กราฟ OK/NG รายชั่วโมง, ตาราง event, หน้าประวัติ |
+| `commands` | ปุ่มเคลียร์ NG/LOCK และคำสั่งอื่น (insert), หน้าล็อตงานแสดงคิวคำสั่ง |
+
+### ติดตั้ง
+
+1. รัน `supabase/schema.sql` ใน SQL Editor ของโปรเจกต์
+2. สร้าง user ที่ Authentication → Users → Add user
+3. ใส่ `supabaseUrl` + `supabaseKey` (publishable) ใน `assets/config.js`
+4. `node build.js` แล้ว deploy
+
+อยากเห็นหน้าจอมีข้อมูลก่อนต่อเครื่องจริง รัน `supabase/seed-demo.sql` เพิ่ม
+
+### role
+
+- `anon` = ตัวเครื่อง ESP32 — เขียน `status`, insert `event_log`, อ่าน/อัปเดต `commands`
+- `authenticated` = ทีม — อ่านทุกตาราง, insert `commands`
+
+เครื่องอ่าน `event_log` ไม่ได้และสั่งงานตัวเองไม่ได้ ส่วน anon key ที่ฝังในหน้าเว็บดึง `event_log` ไม่ออกถ้าไม่ล็อกอิน
+
+### คำสั่งที่ส่งไปเครื่อง
+
+อยู่ใน `assets/config.js` → `commands` ยืนยันแล้วจากข้อมูลจริงมีแค่ `FACTORY_RESET`
+ส่วน `RESET_NG` / `RESET_COUNT` เดาจากชื่อ event ที่เครื่อง log (`reset_ng`, `count_reset`) **ยังไม่ได้เทียบกับ firmware** — ทุกครั้งที่กดส่ง จะมี confirm แสดงชื่อคำสั่งจริงก่อนเสมอ
+
+## ต่อข้อมูลจริง (เดิม)
 
 ตอนนี้ข้อมูลถูกสร้างจำลองในเบราว์เซอร์ (ตาม logic ของดีไซน์ต้นฉบับ) ยังไม่ได้ต่อ Supabase จริง
 จุดที่ต้องแก้ใน `assets/app.js`:

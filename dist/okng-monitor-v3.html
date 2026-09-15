@@ -347,26 +347,107 @@ tbody tr:last-child td{border-bottom:0}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+
+/* ---------------------------------------------------------------- login gate */
+.gate{min-height:100vh;display:grid;place-items:center;padding:24px 16px;background:var(--bg)}
+.gate-card{
+  width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--radius);padding:26px 24px 22px;display:flex;flex-direction:column;gap:12px;
+}
+.gate-brand{margin-bottom:4px}
+.gate-card h1{margin:0;font-size:21px;font-weight:800;letter-spacing:-.02em}
+.gate-sub{margin:0 0 6px;font-size:12.5px;color:var(--muted-2);line-height:1.5}
+.gate-field{gap:6px}
+.inp{
+  width:100%;background:var(--panel);color:var(--ink);border:1px solid var(--line);
+  border-radius:var(--radius-sm);padding:10px 12px;font:inherit;font-size:14px;
+}
+.inp:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+.gate-btn{margin-top:6px;padding:12px 16px;font-size:14px;text-align:center;justify-content:center}
+.gate-error{
+  margin:0;padding:10px 12px;border-radius:var(--radius-sm);
+  background:var(--ng-tint);color:var(--ng-ink);font-size:12.5px;font-weight:600;
+}
+.gate-foot{margin:8px 0 0;font-size:11.5px;color:var(--muted-3);text-align:center}
+
+/* ---------------------------------------------------------------- device + live */
+.device{
+  background:var(--soft);border-radius:12px;padding:10px 12px;
+  display:flex;flex-direction:column;gap:2px;line-height:1.35;
+}
+.device strong{font-size:13px;font-weight:700}
+.device span{font-size:11.5px;color:var(--muted-2)}
+
+.live{
+  display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;
+  font-size:11px;font-weight:800;letter-spacing:.08em;
+  background:var(--soft);color:var(--muted);
+}
+.live-dot{width:7px;height:7px;border-radius:999px;background:currentColor}
+.live[data-state="on"]{background:var(--ok-tint);color:var(--ok-ink)}
+.live[data-state="on"] .live-dot{animation:pulse 1.6s ease infinite}
+.live[data-state="err"]{background:var(--ng-tint);color:var(--ng-ink)}
+
+.banner{
+  margin:0;padding:12px 16px;border-radius:var(--radius-sm);
+  background:var(--amber-tint);color:var(--amber-ink);font-size:13px;font-weight:600;
+}
+.banner.is-error{background:var(--ng-tint);color:var(--ng-ink)}
+
+/* command buttons */
+.cmds{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.cmd-row{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:11px 13px;border-radius:12px;background:var(--soft);
+}
+.cmd-name{font-size:13px;font-weight:700;flex:1;min-width:120px}
+.cmd-name code{
+  display:block;font-size:11px;font-weight:600;color:var(--muted-2);
+  font-family:ui-monospace,monospace;margin-top:2px;
+}
+.cmd-warn{font-size:11px;font-weight:700;color:var(--amber-ink);white-space:nowrap}
 </style>
 </head>
 <body>
 <a class="skip" href="#main">ข้ามไปเนื้อหาหลัก</a>
 
-<div class="shell">
+<!-- ===================== login gate ===================== -->
+<div id="gate" class="gate" hidden>
+  <form id="loginForm" class="gate-card">
+    <div class="brand gate-brand">
+      <span class="brand-mark">HET</span>
+      <span class="brand-name">เครื่องเทียบสี</span>
+    </div>
+    <h1>เข้าสู่ระบบ</h1>
+    <p class="gate-sub">ระบบเก็บข้อมูลการเทส — ต้องเข้าสู่ระบบก่อนดูข้อมูลเครื่อง</p>
 
-  <!-- ===================== sidebar ===================== -->
+    <label class="field gate-field">อีเมล
+      <input id="email" class="inp" type="email" autocomplete="username" required>
+    </label>
+    <label class="field gate-field">รหัสผ่าน
+      <input id="password" class="inp" type="password" autocomplete="current-password" required>
+    </label>
+
+    <p id="loginError" class="gate-error" role="alert" hidden></p>
+    <button id="btnLogin" class="b b-primary gate-btn" type="submit">เข้าสู่ระบบ</button>
+    <p class="gate-foot">Color Inspection System · Supabase Realtime</p>
+  </form>
+</div>
+
+<!-- ===================== app ===================== -->
+<div id="app" class="shell" hidden>
+
   <aside class="side">
     <div class="brand">
       <span class="brand-mark">HET</span>
       <span class="brand-name">เครื่องเทียบสี</span>
     </div>
 
-    <label class="field">สถานี
-      <select id="stationSelect" class="sel"></select>
-    </label>
-
-    <button id="btnRemove" class="b b-danger" type="button">ลบสถานีนี้</button>
-    <button id="btnRestore" class="b b-soft" type="button">คืนค่าสถานีที่ลบ</button>
+    <p class="side-label">อุปกรณ์</p>
+    <div id="deviceCard" class="device">
+      <strong>ST-001 · เครื่องเทียบสี</strong>
+      <span id="deviceSub">กำลังเชื่อมต่อ…</span>
+    </div>
 
     <p class="side-label">เมนูหลัก</p>
     <nav id="nav" class="nav" aria-label="เมนูหลัก"></nav>
@@ -376,7 +457,7 @@ tbody tr:last-child td{border-bottom:0}
         <span class="health-dot" aria-hidden="true"></span>
         <div class="health-text">
           <strong>สถานะเครื่อง</strong>
-          <span id="healthText">heartbeat ปกติ</span>
+          <span id="healthText">กำลังตรวจสอบ…</span>
         </div>
       </div>
 
@@ -397,21 +478,22 @@ tbody tr:last-child td{border-bottom:0}
       </label>
 
       <button id="btnTv" class="b b-soft" type="button">โหมด TV</button>
+      <button id="btnLogout" class="b b-soft" type="button">ออกจากระบบ</button>
     </div>
   </aside>
 
-  <!-- ===================== main ===================== -->
   <main id="main">
     <header class="topbar">
       <p class="crumb"><span>ระบบเก็บข้อมูลการเทส</span><i aria-hidden="true">›</i><b id="crumbView">แดชบอร์ด</b></p>
+      <span id="liveBadge" class="live" data-state="off"><span class="live-dot" aria-hidden="true"></span><span id="liveText">OFFLINE</span></span>
       <button id="btnRefresh" class="b b-soft" type="button">⟳ รีเฟรช</button>
       <button id="btnExport" class="b b-primary" type="button">↓ Export CSV</button>
-      <input id="search" class="search" type="search" placeholder="ค้นหา event / สถานี…" aria-label="ค้นหา event หรือสถานี">
+      <input id="search" class="search" type="search" placeholder="ค้นหา event…" aria-label="ค้นหา event">
     </header>
 
     <div class="page">
       <div class="page-head">
-        <h1 id="stationTitle">—</h1>
+        <h1 id="stationTitle">ST-001 · เครื่องเทียบสี</h1>
         <p id="stationSub">ภาพรวมผลการเทสวันนี้</p>
       </div>
 
@@ -424,26 +506,67 @@ tbody tr:last-child td{border-bottom:0}
         <button id="btnClearLock" class="b b-ghost-light" type="button">เคลียร์ NG/LOCK</button>
       </section>
 
+      <p id="banner" class="banner" role="alert" hidden></p>
+
       <div id="view"></div>
 
       <footer class="foot">
         <span>Color Inspection System · Supabase Realtime</span>
-        <span id="stationCount">—</span>
+        <span id="deviceStamp">—</span>
       </footer>
     </div>
   </main>
 
 </div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+/* ==========================================================================
+   OKNG Monitor v3 — connection and device vocabulary
+   ========================================================================== */
+window.OKNG_CONFIG = {
+  /* Supabase project: color-inspection-dashboard (ap-southeast-1).
+     The publishable key is meant to be public — row access is enforced by RLS,
+     which only grants reads to signed-in (authenticated) users. */
+  supabaseUrl: 'https://ufmwcstlzygrnmzkpgbs.supabase.co',
+  supabaseKey: 'sb_publishable_45oScSoydZ9JSOmVoQ9ibQ_LvP8_g5m',
+
+  /* The status table is a single row pinned to id = 1 (one machine). */
+  statusId: 1,
+
+  /* How long without a device heartbeat before the machine reads as offline. */
+  offlineAfterMs: 3 * 60 * 1000,
+
+  /* event_log.event values, grouped for the hourly chart.
+     Taken from the events the device has actually written. Anything not
+     listed here still shows in the tables, just outside the OK/NG chart. */
+  okEvents: ['ok'],
+  ngEvents: ['auto_fail_miss1', 'ng', 'n', 'ne'],
+
+  /* commands.cmd strings sent to the device.
+     CONFIRMED from the commands table: FACTORY_RESET.
+     The rest are inferred from the event names the device logs
+     (reset_ng, count_reset) and are NOT yet confirmed against the firmware —
+     check them before relying on them. Every send asks for confirmation and
+     shows the exact string first, so nothing goes out silently. */
+  commands: {
+    resetNg:      { cmd: 'RESET_NG',      label: 'เคลียร์ NG / ปลด LOCK', confirmed: false },
+    resetCount:   { cmd: 'RESET_COUNT',   label: 'รีเซ็ตตัวนับล็อต',      confirmed: false },
+    factoryReset: { cmd: 'FACTORY_RESET', label: 'Factory reset',        confirmed: true }
+  }
+};
+</script>
 <script>
 /* ==========================================================================
    OKNG Monitor v3 — Color Inspection System
-   Vanilla JS port of the source design's component logic.
+   Reads the live machine from Supabase: status (one row), event_log and
+   commands. RLS only grants those reads to signed-in users, so the page
+   opens on a login gate.
    ========================================================================== */
 (function () {
   'use strict';
 
-  var NAMES = ['Press A1', 'Press A2', 'Weld B1', 'Weld B2', 'Assy C1', 'Assy C2',
-               'Inspect D1', 'Inspect D2', 'Paint E1', 'Pack F1', 'Pack F2', 'Trim G1'];
+  var CFG = window.OKNG_CONFIG;
+  var sb = null;
 
   var NAV = [
     { label: 'แดชบอร์ด', icon: '▤', tint: '#e7e9fd', ink: '#4f56e0' },
@@ -453,92 +576,131 @@ tbody tr:last-child td{border-bottom:0}
     { label: 'รายงาน',   icon: '◈', tint: '#fdeaf1', ink: '#c8407a' }
   ];
 
-  var STATION_COUNT = 11;
-
-  var fmt = function (n) { return n.toLocaleString('en-US'); };
+  var fmt = function (n) { return Number(n || 0).toLocaleString('en-US'); };
   var pad2 = function (n) { return String(n).padStart(2, '0'); };
   var hhmm = function (d) { return pad2(d.getHours()) + ':' + pad2(d.getMinutes()); };
   var thDate = function (ts) {
     return new Date(ts).toLocaleString('th-TH', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
   };
   var esc = function (s) {
-    return String(s).replace(/[&<>"]/g, function (c) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
     });
+  };
+  var ago = function (ts) {
+    if (!ts) return 'ไม่เคยส่งข้อมูล';
+    var ms = Date.now() - new Date(ts).getTime();
+    var m = Math.floor(ms / 60000);
+    if (m < 1) return 'เมื่อสักครู่';
+    if (m < 60) return m + ' นาทีที่แล้ว';
+    var h = Math.floor(m / 60);
+    if (h < 24) return h + ' ชั่วโมงที่แล้ว';
+    return Math.floor(h / 24) + ' วันที่แล้ว';
   };
 
   /* ---------------------------------------------------------------- state */
 
   var S = {
-    all: [], st: [], removed: [], sel: null,
-    series: {}, events: {},
+    status: null, events: [], commands: [],
     view: 'แดชบอร์ด', q: '',
     theme: 'cool', font: 'sarabun', tv: false,
-    clock: hhmm(new Date())
+    live: 'off', notice: null, noticeKind: 'warn'
   };
-
-  function buildStations() {
-    var st = [];
-    for (var i = 0; i < STATION_COUNT; i++) {
-      var ok = 40 + Math.floor(Math.random() * 900);
-      var ng = 2 + Math.floor(Math.random() * 24);
-      st.push({
-        id: 'ST-' + String(i + 1).padStart(3, '0'),
-        name: NAMES[i % NAMES.length],
-        ok: ok, ng: ng, ngBox: ng, setting: 1000,
-        rate: 1.6 + Math.random() * 2.4,
-        downtime: Math.random() * 4,
-        lockSec: 0, offline: false
-      });
-    }
-    // the design opens with station 1 locked and station 6 off the air
-    st[0].ng = st[0].ngBox + 1;
-    st[0].lockSec = 6;
-    if (st[5]) st[5].offline = true;
-    return st;
-  }
-
-  function seedEvents(s) {
-    var out = [], t = Date.now(), ng = s.ng, box = s.ngBox;
-    for (var i = 0; i < 40; i++) {
-      t -= (2 + Math.random() * 16) * 60000;
-      out.push({
-        ts: t, type: i % 4 === 3 ? 'NG_BOXED' : 'NG',
-        ok: Math.max(s.ok - i * 7, 0), ng: ng--, box: box--
-      });
-    }
-    return out;
-  }
-
-  function hoursOf(s) {
-    if (!S.series[s.id]) {
-      var hours = [];
-      for (var i = 11; i >= 0; i--) {
-        var h = new Date(Date.now() - i * 3600000);
-        var ok = Math.max(2, Math.round(s.rate * 60 * (0.5 + Math.random() * 0.7) / 8));
-        hours.push({ h: h, ok: ok, ng: Math.max(0, Math.round(ok * (0.01 + Math.random() * 0.12))) });
-      }
-      S.series[s.id] = hours;
-    }
-    return S.series[s.id];
-  }
-
-  function current() {
-    return S.st.filter(function (x) { return x.id === S.sel; })[0] || S.st[0] || null;
-  }
-
-  /* ------------------------------------------------------------- elements */
 
   var $ = function (id) { return document.getElementById(id); };
-  var el = {
-    side: $('stationSelect'), nav: $('nav'), view: $('view'),
-    crumb: $('crumbView'), title: $('stationTitle'), sub: $('stationSub'),
-    lock: $('lockBanner'), lockDetail: $('lockDetail'), btnClearLock: $('btnClearLock'),
-    health: $('health'), healthText: $('healthText'), count: $('stationCount'),
-    search: $('search'), btnRemove: $('btnRemove'), btnRestore: $('btnRestore'),
-    btnRefresh: $('btnRefresh'), btnExport: $('btnExport'), btnTv: $('btnTv'),
-    theme: $('themeSelect'), font: $('fontSelect')
-  };
+  var el = {};
+
+  /* ------------------------------------------------------------- derived */
+
+  function offline() {
+    if (!S.status) return true;
+    var seen = S.status.device_seen_at || S.status.updated_at;
+    return !seen || (Date.now() - new Date(seen).getTime()) > CFG.offlineAfterMs;
+  }
+  function locked() {
+    return !!(S.status && (S.status.lock_old || S.status.lock_auto));
+  }
+  function yieldPct() {
+    if (!S.status) return 100;
+    var t = Number(S.status.ok_total || 0) + Number(S.status.ng_total || 0);
+    return t ? Number(S.status.ok_total || 0) / t * 100 : 100;
+  }
+  function lotPct() {
+    if (!S.status) return 0;
+    var setting = Number(S.status.setting || 0);
+    return setting > 0 ? Math.min(Number(S.status.counting || 0) / setting * 100, 100) : 0;
+  }
+  function etaMin() {
+    if (!S.status) return 0;
+    var rate = Number(S.status.rate || 0);
+    var left = Number(S.status.setting || 0) - Number(S.status.counting || 0);
+    return rate > 0 ? Math.max(left / rate, 0) : 0;
+  }
+  function categoryOf(ev) {
+    var e = String(ev || '').toLowerCase();
+    if (CFG.okEvents.indexOf(e) !== -1) return 'ok';
+    if (CFG.ngEvents.indexOf(e) !== -1) return 'ng';
+    return 'other';
+  }
+
+  /* -------------------------------------------------------------- loading */
+
+  function setNotice(msg, kind) {
+    S.notice = msg || null;
+    S.noticeKind = kind || 'warn';
+  }
+
+  function setLive(state, label) {
+    S.live = state;
+    el.liveBadge.dataset.state = state;
+    el.liveText.textContent = label;
+  }
+
+  async function loadAll() {
+    try {
+      var res = await Promise.all([
+        sb.from('status').select('*').eq('id', CFG.statusId).maybeSingle(),
+        sb.from('event_log').select('*').order('created_at', { ascending: false }).limit(300),
+        sb.from('commands').select('*').order('created_at', { ascending: false }).limit(50)
+      ]);
+      var statusRes = res[0], eventRes = res[1], cmdRes = res[2];
+
+      if (statusRes.error) throw statusRes.error;
+      S.status = statusRes.data;
+      S.events = eventRes.error ? [] : (eventRes.data || []);
+      S.commands = cmdRes.error ? [] : (cmdRes.data || []);
+
+      if (!S.status) setNotice('ยังไม่มีแถว status (id = ' + CFG.statusId + ') ในฐานข้อมูล — เครื่องยังไม่เคยส่งข้อมูลเข้ามา', 'warn');
+      else if (eventRes.error) setNotice('อ่าน event_log ไม่ได้: ' + eventRes.error.message, 'error');
+      else setNotice(null);
+
+      setLive('on', 'LIVE');
+    } catch (err) {
+      setNotice('โหลดข้อมูลไม่สำเร็จ: ' + (err.message || err), 'error');
+      setLive('err', 'ERROR');
+    }
+    render();
+  }
+
+  function subscribe() {
+    sb.channel('okng-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'status' }, function (p) {
+        if (p.new && p.new.id === CFG.statusId) { S.status = p.new; render(); }
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'event_log' }, function (p) {
+        if (!p.new) return;
+        S.events = [p.new].concat(S.events).slice(0, 300);
+        render();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'commands' }, function () {
+        sb.from('commands').select('*').order('created_at', { ascending: false }).limit(50)
+          .then(function (r) { if (!r.error) { S.commands = r.data || []; render(); } });
+      })
+      .subscribe(function (st) {
+        if (st === 'SUBSCRIBED') setLive('on', 'LIVE');
+        else if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') setLive('err', 'RECONNECT');
+      });
+  }
 
   /* -------------------------------------------------------------- chrome */
 
@@ -552,46 +714,35 @@ tbody tr:last-child td{border-bottom:0}
     }).join('');
   }
 
-  function renderStationSelect() {
-    el.side.innerHTML = S.st.map(function (x) {
-      return '<option value="' + esc(x.id) + '"' + (x.id === S.sel ? ' selected' : '') + '>' +
-        esc(x.id + ' · ' + x.name) + '</option>';
-    }).join('');
-    el.btnRemove.disabled = S.st.length <= 1;
-    el.btnRestore.disabled = !S.removed.length;
-    el.count.textContent = S.st.length + ' สถานี' + (S.removed.length ? ' · ลบไป ' + S.removed.length : '');
-  }
-
-  function renderHeader(s) {
+  function renderHeader() {
     el.crumb.textContent = S.view;
-    el.title.textContent = s ? s.id + ' · ' + s.name : 'ไม่มีสถานี';
-    el.sub.textContent = 'ภาพรวมผลการเทสวันนี้ — อัปเดตล่าสุด ' + S.clock;
+    var off = offline();
+    var seen = S.status && (S.status.device_seen_at || S.status.updated_at);
 
-    var locked = s && s.ng > s.ngBox;
-    el.lock.hidden = !locked;
-    if (locked) {
-      el.lockDetail.textContent = s.id + ' ค้าง ' + (s.ng - s.ngBox) + ' ชิ้น · LOCK ' + s.lockSec + ' วินาที';
+    el.sub.textContent = 'ภาพรวมผลการเทส — ข้อมูลล่าสุด ' + ago(seen);
+    el.deviceSub.textContent = off ? 'ไม่มีสัญญาณ · ' + ago(seen) : 'ออนไลน์ · ' + ago(seen);
+    el.deviceStamp.textContent = seen ? 'device_seen_at ' + thDate(seen) : 'ยังไม่มีข้อมูล';
+
+    el.health.classList.toggle('is-off', off);
+    el.healthText.textContent = off ? 'ไม่มีข้อมูลใหม่ ' + ago(seen) : 'heartbeat ปกติ';
+
+    var lk = locked();
+    el.lock.hidden = !lk;
+    if (lk) {
+      var why = [];
+      if (S.status.lock_old) why.push('lock_old');
+      if (S.status.lock_auto) why.push('lock_auto');
+      el.lockDetail.textContent = 'NG สะสม ' + fmt(S.status.ng_total) + ' ชิ้น · ' + why.join(' + ');
     }
 
-    var off = s && s.offline;
-    el.health.classList.toggle('is-off', !!off);
-    el.healthText.textContent = off ? 'ไม่มีข้อมูลใหม่ 3 นาที' : 'heartbeat ปกติ';
+    el.banner.hidden = !S.notice;
+    if (S.notice) {
+      el.banner.textContent = S.notice;
+      el.banner.classList.toggle('is-error', S.noticeKind === 'error');
+    }
   }
 
   /* --------------------------------------------------------------- views */
-
-  function kpisOf(s) {
-    var total = s.ok + s.ng;
-    var locked = s.ng > s.ngBox;
-    var eta = s.rate > 0 ? (s.setting - s.ok) / s.rate : 0;
-    return [
-      { label: 'OK สะสม', value: fmt(s.ok), unit: 'ชิ้น', icon: '✓', edge: '#2f9e52', tint: 'var(--ok-tint)', tagInk: 'var(--ok-ink)', tag: 'ผ่านการตรวจสีครบ' },
-      { label: 'NG สะสม', value: fmt(s.ng), unit: 'ชิ้น', icon: '✕', edge: '#e0342f', tint: 'var(--ng-tint)', tagInk: 'var(--ng-ink)', tag: locked ? 'ค้าง ' + (s.ng - s.ngBox) + ' ชิ้น' : 'เข้ากล่องครบ' },
-      { label: 'Yield', value: (total ? s.ok / total * 100 : 100).toFixed(1) + '%', unit: '', icon: '%', edge: '#4f7fe8', tint: 'var(--info-tint)', tagInk: 'var(--info-ink)', tag: 'OK / ทั้งหมด' },
-      { label: 'อัตราผลิต', value: s.offline ? '0.0' : s.rate.toFixed(1), unit: 'ชิ้น/นาที', icon: '⚡', edge: '#7c56e0', tint: 'var(--violet-tint)', tagInk: '#7c56e0', tag: 'ETA ' + Math.max(eta, 0).toFixed(1) + ' นาที' },
-      { label: 'Downtime วันนี้', value: s.downtime.toFixed(1), unit: 'นาที', icon: '◔', edge: '#c67139', tint: 'var(--clay-tint)', tagInk: '#c67139', tag: 'LOCK สะสม' }
-    ];
-  }
 
   function kpiHtml(k) {
     return '<article class="card">' +
@@ -606,56 +757,123 @@ tbody tr:last-child td{border-bottom:0}
       '</article>';
   }
 
-  function ioOf(s, locked, pct) {
+  function kpis() {
+    var s = S.status || {};
+    var off = offline();
     return [
-      { pin: 'D9', name: 'เซ็นเซอร์ตรวจพบสี', dot: s.offline ? '#c3c8d8' : '#2f9e52', state: s.offline ? 'ไม่มีสัญญาณ' : 'ว่าง', tint: s.offline ? 'var(--soft)' : 'var(--ok-tint)', ink: s.offline ? 'var(--muted)' : 'var(--ok-ink)' },
-      { pin: 'D11', name: 'OK output', dot: '#4f7fe8', state: 'ว่าง', tint: 'var(--info-tint)', ink: 'var(--info-ink)' },
-      { pin: 'D12', name: 'NG / LOCK', dot: locked ? '#e0342f' : '#c3c8d8', state: locked ? 'LOCK' : 'ปกติ', tint: locked ? 'var(--ng-tint)' : 'var(--soft)', ink: locked ? 'var(--ng-ink)' : 'var(--muted)' },
-      { pin: 'D5 / D6', name: 'Full counter', dot: pct >= 100 ? '#e0a020' : '#c3c8d8', state: pct >= 100 ? 'ครบล็อต' : 'ยังไม่ครบ', tint: pct >= 100 ? 'var(--amber-tint)' : 'var(--soft)', ink: pct >= 100 ? 'var(--amber-ink)' : 'var(--muted)' }
+      { label: 'OK สะสม', value: fmt(s.ok_total), unit: 'ชิ้น', icon: '✓',
+        edge: '#2f9e52', tint: 'var(--ok-tint)', tagInk: 'var(--ok-ink)', tag: 'ผ่านการตรวจสีครบ' },
+      { label: 'NG สะสม', value: fmt(s.ng_total), unit: 'ชิ้น', icon: '✕',
+        edge: '#e0342f', tint: 'var(--ng-tint)', tagInk: 'var(--ng-ink)',
+        tag: locked() ? 'LOCK อยู่' : 'ไม่มีของค้าง' },
+      { label: 'Yield', value: yieldPct().toFixed(1) + '%', unit: '', icon: '%',
+        edge: '#4f7fe8', tint: 'var(--info-tint)', tagInk: 'var(--info-ink)', tag: 'OK / ทั้งหมด' },
+      { label: 'อัตราผลิต', value: off ? '0.0' : Number(s.rate || 0).toFixed(1), unit: 'ชิ้น/นาที', icon: '⚡',
+        edge: '#7c56e0', tint: 'var(--violet-tint)', tagInk: '#7c56e0',
+        tag: 'ETA ' + etaMin().toFixed(1) + ' นาที' },
+      { label: 'อัปเดตล่าสุด', value: off ? 'OFFLINE' : 'ONLINE', unit: '', icon: '◔',
+        edge: off ? '#e0a020' : '#2f9e52', tint: off ? 'var(--amber-tint)' : 'var(--ok-tint)',
+        tagInk: off ? 'var(--amber-ink)' : 'var(--ok-ink)', tag: ago(s.device_seen_at || s.updated_at) }
     ];
   }
 
-  function viewDashboard(s) {
-    var locked = s.ng > s.ngBox;
-    var pct = Math.min(s.ok / Math.max(s.setting, 1) * 100, 100);
-    var eta = s.rate > 0 ? (s.setting - s.ok) / s.rate : 0;
-    var hours = hoursOf(s);
-    var maxBar = Math.max.apply(null, hours.map(function (h) { return h.ok + h.ng; }).concat([1]));
+  // 12 hourly buckets counted from event_log
+  function hourly() {
+    var now = new Date();
+    now.setMinutes(0, 0, 0);
+    var buckets = [];
+    for (var i = 11; i >= 0; i--) {
+      buckets.push({ h: new Date(now.getTime() - i * 3600000), ok: 0, ng: 0, other: 0 });
+    }
+    var first = buckets[0].h.getTime();
+    S.events.forEach(function (e) {
+      var t = new Date(e.created_at).getTime();
+      if (t < first) return;
+      var idx = Math.floor((t - first) / 3600000);
+      if (idx < 0 || idx >= buckets.length) return;
+      buckets[idx][categoryOf(e.event)]++;
+    });
+    return buckets;
+  }
 
-    var bars = hours.map(function (h) {
-      var tot = h.ok + h.ng;
-      return '<div class="bar-col">' +
-        '<div class="bar-pair">' +
-          '<i class="bar-ok" data-v="' + tot + '" style="height:' + Math.max(8, tot / maxBar * 168).toFixed(0) + 'px"></i>' +
-          '<i class="bar-ng" style="height:' + Math.max(4, h.ng / maxBar * 168).toFixed(0) + 'px"></i>' +
-        '</div>' +
-        '<span class="bar-h">' + pad2(h.h.getHours()) + '</span>' +
-        '</div>';
+  function ioRows() {
+    var s = S.status || {};
+    var off = offline();
+    var pin = function (name, label, on, onInk, onTint, onText, offText) {
+      return { pin: name, name: label,
+        dot: off ? '#c3c8d8' : (on ? onInk : '#c3c8d8'),
+        state: off ? 'ไม่มีสัญญาณ' : (on ? onText : offText),
+        tint: off ? 'var(--soft)' : (on ? onTint : 'var(--soft)'),
+        ink: off ? 'var(--muted)' : (on ? onInk : 'var(--muted)') };
+    };
+    return [
+      pin('D9', 'เซ็นเซอร์ตรวจพบสี', s.d9, '#2f9e52', 'var(--ok-tint)', 'ตรวจพบ', 'ว่าง'),
+      pin('D11', 'OK output', s.d11, '#4f7fe8', 'var(--info-tint)', 'ทำงาน', 'ว่าง'),
+      pin('D12', 'NG / LOCK', s.d12, '#e0342f', 'var(--ng-tint)', 'LOCK', 'ปกติ'),
+      pin('D5 / D6', 'Full counter', s.full_counter, '#e0a020', 'var(--amber-tint)', 'ครบล็อต', 'ยังไม่ครบ')
+    ];
+  }
+
+  function eventTag(ev) {
+    var c = categoryOf(ev);
+    var tint = c === 'ok' ? 'var(--ok-tint)' : c === 'ng' ? 'var(--ng-tint)' : 'var(--soft)';
+    var ink = c === 'ok' ? 'var(--ok-ink)' : c === 'ng' ? 'var(--ng-ink)' : 'var(--muted)';
+    return '<span class="chip" style="background:' + tint + ';color:' + ink + '">' + esc(ev) + '</span>';
+  }
+
+  function filteredEvents() {
+    var q = S.q.trim().toLowerCase();
+    if (!q) return S.events;
+    return S.events.filter(function (e) {
+      return (String(e.event) + ' ' + thDate(e.created_at)).toLowerCase().indexOf(q) !== -1;
+    });
+  }
+
+  function eventTable(rows, emptyText) {
+    if (!rows.length) return '<p class="empty">' + esc(emptyText) + '</p>';
+    return '<div class="tbl-wrap"><table><thead><tr>' +
+      '<th>เวลา</th><th>event</th><th class="t-right">id</th>' +
+      '</tr></thead><tbody>' + rows.map(function (e) {
+        return '<tr><td class="num">' + esc(thDate(e.created_at)) + '</td>' +
+          '<td>' + eventTag(e.event) + '</td>' +
+          '<td class="t-right">' + fmt(e.id) + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+
+  function viewDashboard() {
+    var buckets = hourly();
+    var maxBar = Math.max.apply(null, buckets.map(function (b) { return b.ok + b.ng + b.other; }).concat([1]));
+    var bars = buckets.map(function (b) {
+      var tot = b.ok + b.ng;
+      return '<div class="bar-col"><div class="bar-pair">' +
+        '<i class="bar-ok" data-v="' + (tot || '') + '" style="height:' + Math.max(b.ok ? 8 : 2, b.ok / maxBar * 168).toFixed(0) + 'px"></i>' +
+        '<i class="bar-ng" style="height:' + Math.max(b.ng ? 6 : 2, b.ng / maxBar * 168).toFixed(0) + 'px"></i>' +
+        '</div><span class="bar-h">' + pad2(b.h.getHours()) + '</span></div>';
     }).join('');
 
-    // yield trend polyline over the same 12 hours
-    var pts = hours.map(function (h, i) {
-      var y = (h.ok + h.ng) ? h.ok / (h.ok + h.ng) * 100 : 100;
+    var pts = buckets.map(function (b, i) {
+      var t = b.ok + b.ng;
+      var y = t ? b.ok / t * 100 : 100;
       return (i / 11 * 470 + 5).toFixed(1) + ',' + (140 - y / 100 * 120).toFixed(1);
     }).join(' ');
 
-    var io = ioOf(s, locked, pct).map(function (r) {
+    var io = ioRows().map(function (r) {
       return '<div class="io-row" style="background:' + r.tint + '">' +
         '<span class="io-dot" style="background:' + r.dot + '"></span>' +
         '<span class="io-pin" style="color:' + r.ink + '">' + esc(r.pin) + '</span>' +
         '<span class="io-name">' + esc(r.name) + '</span>' +
-        '<span class="io-state" style="color:' + r.ink + '">' + esc(r.state) + '</span>' +
-        '</div>';
+        '<span class="io-state" style="color:' + r.ink + '">' + esc(r.state) + '</span></div>';
     }).join('');
 
-    var evs = eventsFor(s);
+    var s = S.status || {};
+    var rows = filteredEvents().slice(0, 60);
 
-    return '<section class="grid-kpi">' + kpisOf(s).map(kpiHtml).join('') + '</section>' +
+    return '<section class="grid-kpi">' + kpis().map(kpiHtml).join('') + '</section>' +
 
       '<section class="grid-2">' +
         '<article class="card">' +
           '<div class="card-head"><div><h2>OK / NG รายชั่วโมง</h2>' +
-            '<p>12 ชั่วโมงที่ผ่านมา · ' + hhmm(hours[0].h) + ' → ' + hhmm(hours[hours.length - 1].h) + '</p></div>' +
+            '<p>12 ชั่วโมงที่ผ่านมา · ' + hhmm(buckets[0].h) + ' → ' + hhmm(buckets[11].h) + '</p></div>' +
             '<div class="legend"><span><i style="background:var(--info)"></i>OK</span>' +
             '<span><i style="background:var(--bar-ng)"></i>NG</span></div></div>' +
           '<div class="bars">' + bars + '</div>' +
@@ -666,24 +884,24 @@ tbody tr:last-child td{border-bottom:0}
             '<svg class="gauge" viewBox="0 0 200 110" aria-hidden="true">' +
               '<path class="gauge-track" d="M15 100 A85 85 0 0 1 185 100"/>' +
               '<path class="gauge-fill" d="M15 100 A85 85 0 0 1 185 100" ' +
-                'style="stroke-dasharray:' + (pct / 100 * 267).toFixed(1) + ' 267"/>' +
+                'style="stroke-dasharray:' + (lotPct() / 100 * 267).toFixed(1) + ' 267"/>' +
             '</svg>' +
-            '<strong class="gauge-val num">' + Math.round(pct) + '%</strong>' +
-            '<span class="gauge-sub num">' + fmt(s.ok) + ' / ' + fmt(s.setting) + ' pcs</span>' +
+            '<strong class="gauge-val num">' + Math.round(lotPct()) + '%</strong>' +
+            '<span class="gauge-sub num">' + fmt(s.counting) + ' / ' + fmt(s.setting) + ' pcs</span>' +
           '</div>' +
           '<div class="rows">' +
-            '<div><span>อัตราผลิต</span><b>' + s.rate.toFixed(1) + ' ชิ้น/นาที</b></div>' +
-            '<div><span>คาดว่าจะครบใน</span><b>' + Math.max(eta, 0).toFixed(1) + ' นาที</b></div>' +
-            '<div><span>Downtime วันนี้</span><b>' + s.downtime.toFixed(1) + ' นาที</b></div>' +
+            '<div><span>อัตราผลิต</span><b>' + Number(s.rate || 0).toFixed(1) + ' ชิ้น/นาที</b></div>' +
+            '<div><span>คาดว่าจะครบใน</span><b>' + etaMin().toFixed(1) + ' นาที</b></div>' +
+            '<div><span>event ล่าสุดจากเครื่อง</span><b>' + esc(s.event || '—') + '</b></div>' +
           '</div>' +
         '</article>' +
       '</section>' +
 
       '<section class="grid-2b">' +
         '<article class="card">' +
-          '<div class="card-head"><div><h2>สถานะ I/O</h2></div></div>' +
-          '<p class="big-stat">LOCK ต่อเนื่องขณะนี้<b class="num">' + s.lockSec + '<small> วินาที</small></b></p>' +
-          '<p class="big-hint">' + (locked ? 'ต้องนำ NG เข้ากล่องเพื่อปลดล็อก' : 'ยังไม่มี NG ค้างในกะนี้') + '</p>' +
+          '<div class="card-head"><div><h2>สถานะ I/O</h2><p>อ่านสดจากตาราง status</p></div></div>' +
+          '<p class="big-stat">NG สะสมรอเคลียร์<b class="num">' + fmt(s.ng_total) + '<small> ชิ้น</small></b></p>' +
+          '<p class="big-hint">' + (locked() ? 'ต้องนำ NG เข้ากล่องเพื่อปลดล็อก' : 'ไม่มี LOCK ค้างอยู่') + '</p>' +
           '<div class="io">' + io + '</div>' +
         '</article>' +
         '<article class="card">' +
@@ -692,134 +910,109 @@ tbody tr:last-child td{border-bottom:0}
             '<polygon class="trend-area" points="5,140 ' + pts + ' 475,140"/>' +
             '<polyline class="trend-line" points="' + pts + '"/>' +
           '</svg>' +
-          '<div class="trend-axis"><span>' + hhmm(hours[0].h) + '</span><span>100 · 50 · 0 %</span>' +
-            '<span>' + hhmm(hours[hours.length - 1].h) + '</span></div>' +
+          '<div class="trend-axis"><span>' + hhmm(buckets[0].h) + '</span><span>100 · 50 · 0 %</span>' +
+            '<span>' + hhmm(buckets[11].h) + '</span></div>' +
         '</article>' +
       '</section>' +
 
       '<article class="card">' +
-        '<div class="card-head"><div><h2>NG events ล่าสุด</h2></div>' +
-          '<span class="card-note">' + fmt(evs.length) + ' รายการ</span></div>' +
-        (evs.length ? '<div class="tbl-wrap"><table><thead><tr>' +
-          '<th>เวลา</th><th>ชนิด</th><th class="t-right">OK</th><th class="t-right">NG</th><th class="t-right">ในกล่อง</th>' +
-          '</tr></thead><tbody>' + evs.map(function (e) {
-            return '<tr><td class="num">' + esc(thDate(e.ts)) + '</td>' +
-              '<td>' + typeTag(e.type) + '</td>' +
-              '<td class="t-right">' + fmt(e.ok) + '</td>' +
-              '<td class="t-right">' + fmt(Math.max(e.ng, 0)) + '</td>' +
-              '<td class="t-right">' + fmt(Math.max(e.box, 0)) + '</td></tr>';
-          }).join('') + '</tbody></table></div>'
-        : '<p class="empty">ไม่พบ event ที่ตรงกับคำค้น</p>') +
+        '<div class="card-head"><div><h2>Event ล่าสุด</h2></div>' +
+          '<span class="card-note">' + fmt(filteredEvents().length) + ' รายการ</span></div>' +
+        eventTable(rows, S.q ? 'ไม่พบ event ที่ตรงกับคำค้น' : 'ยังไม่มี event จากเครื่อง') +
       '</article>';
   }
 
-  function typeTag(t) {
-    var boxed = t === 'NG_BOXED';
-    return '<span class="chip" style="background:' + (boxed ? 'var(--ok-tint)' : 'var(--ng-tint)') +
-      ';color:' + (boxed ? 'var(--ok-ink)' : 'var(--ng-ink)') + '">' + esc(t) + '</span>';
-  }
+  function viewLog() {
+    var cmds = Object.keys(CFG.commands).map(function (key) {
+      var c = CFG.commands[key];
+      return '<div class="cmd-row">' +
+        '<span class="cmd-name">' + esc(c.label) + '<code>' + esc(c.cmd) + '</code></span>' +
+        (c.confirmed ? '' : '<span class="cmd-warn">ยังไม่ยืนยันกับ firmware</span>') +
+        '<button class="b ' + (key === 'factoryReset' ? 'b-danger' : 'b-primary') + ' b-sm" type="button" ' +
+          'data-cmd="' + esc(key) + '">ส่งคำสั่ง</button>' +
+        '</div>';
+    }).join('');
 
-  function eventsFor(s) {
-    var all = S.events[s.id] || [];
-    var q = S.q.toLowerCase();
-    if (!q) return all;
-    return all.filter(function (e) {
-      return (e.type + ' ' + thDate(e.ts)).toLowerCase().indexOf(q) !== -1;
-    });
-  }
-
-  function viewLog(s) {
-    var recent = (S.events[s.id] || []).slice(0, 10);
-    return '<div class="log-actions">' +
-        '<button class="b b-primary" type="button" data-act="addOk">+ บันทึก OK</button>' +
-        '<button class="b b-danger" type="button" data-act="addNg">+ บันทึก NG</button>' +
-      '</div>' +
+    return '<article class="card">' +
+        '<div class="card-head"><div><h2>ส่งคำสั่งไปที่เครื่อง</h2>' +
+          '<p>เขียนลงตาราง commands · เครื่องจะอ่านแล้วตั้ง processed = true</p></div></div>' +
+        '<div class="cmds">' + cmds + '</div>' +
+      '</article>' +
       '<article class="card">' +
         '<div class="card-head"><div><h2>10 รายการที่บันทึกล่าสุด</h2></div>' +
-          '<span class="card-note">OK ' + fmt(s.ok) + ' · NG ' + fmt(s.ng) + '</span></div>' +
-        (recent.length ? '<div class="log-list">' + recent.map(function (e) {
-          var boxed = e.type === 'NG_BOXED';
+          '<span class="card-note">OK ' + fmt(S.status && S.status.ok_total) +
+          ' · NG ' + fmt(S.status && S.status.ng_total) + '</span></div>' +
+        (S.events.length ? '<div class="log-list">' + S.events.slice(0, 10).map(function (e) {
+          var c = categoryOf(e.event);
           return '<div class="log-row">' +
-            '<span class="log-dot" style="background:' + (boxed ? '#2f9e52' : '#e0342f') + '"></span>' +
-            '<span class="log-type">' + esc(e.type) + '</span>' +
-            '<span class="log-time">' + esc(thDate(e.ts)) + '</span></div>';
-        }).join('') + '</div>' : '<p class="empty">ยังไม่มีรายการที่บันทึก</p>') +
+            '<span class="log-dot" style="background:' +
+              (c === 'ok' ? '#2f9e52' : c === 'ng' ? '#e0342f' : '#c3c8d8') + '"></span>' +
+            '<span class="log-type">' + esc(e.event) + '</span>' +
+            '<span class="log-time">' + esc(thDate(e.created_at)) + '</span></div>';
+        }).join('') + '</div>' : '<p class="empty">ยังไม่มี event จากเครื่อง</p>') +
       '</article>';
   }
 
   function viewHistory() {
-    var rows = [];
-    S.st.forEach(function (x) {
-      (S.events[x.id] || []).forEach(function (e) { rows.push({ station: x.id, e: e }); });
-    });
-    rows.sort(function (a, b) { return b.e.ts - a.e.ts; });
-    var q = S.q.toLowerCase();
-    rows = rows.map(function (r) {
-      return { station: r.station, type: r.e.type, time: thDate(r.e.ts),
-        ok: r.e.ok, ng: Math.max(r.e.ng, 0), box: Math.max(r.e.box, 0) };
-    }).filter(function (r) {
-      return !q || (r.station + ' ' + r.type + ' ' + r.time).toLowerCase().indexOf(q) !== -1;
-    }).slice(0, 300);
-
+    var rows = filteredEvents();
     return '<article class="card">' +
-      '<div class="card-head"><div><h2>ประวัติ event ทุกสถานี</h2>' +
+      '<div class="card-head"><div><h2>ประวัติ event ทั้งหมด</h2>' +
         '<p>' + fmt(rows.length) + ' รายการ · กรองด้วยช่องค้นหาด้านบน</p></div></div>' +
-      (rows.length ? '<div class="tbl-wrap"><table><thead><tr>' +
-        '<th>เวลา</th><th>สถานี</th><th>ชนิด</th><th class="t-right">OK</th><th class="t-right">NG</th><th class="t-right">ในกล่อง</th>' +
-        '</tr></thead><tbody>' + rows.map(function (r) {
-          return '<tr><td class="num">' + esc(r.time) + '</td>' +
-            '<td class="t-id">' + esc(r.station) + '</td>' +
-            '<td>' + typeTag(r.type) + '</td>' +
-            '<td class="t-right">' + fmt(r.ok) + '</td>' +
-            '<td class="t-right">' + fmt(r.ng) + '</td>' +
-            '<td class="t-right">' + fmt(r.box) + '</td></tr>';
-        }).join('') + '</tbody></table></div>'
-      : '<p class="empty">ไม่พบ event ที่ตรงกับคำค้น</p>') +
+      eventTable(rows, S.q ? 'ไม่พบ event ที่ตรงกับคำค้น' : 'ยังไม่มี event จากเครื่อง') +
       '</article>';
   }
 
   function viewLots() {
-    return '<div class="lots">' + S.st.map(function (x) {
-      var p = Math.min(x.ok / Math.max(x.setting, 1) * 100, 100);
-      var lk = x.ng > x.ngBox;
-      var edge = lk ? '#e0342f' : p >= 100 ? '#e0a020' : x.offline ? '#8a90ab' : '#2f9e52';
-      var tint = lk ? 'var(--ng-tint)' : p >= 100 ? 'var(--amber-tint)' : x.offline ? 'var(--soft)' : 'var(--ok-tint)';
-      var status = lk ? 'LOCK' : x.offline ? 'NO SIGNAL' : p >= 100 ? 'ครบล็อต' : 'กำลังผลิต';
-      return '<button class="lot" type="button" data-lot="' + esc(x.id) + '">' +
-        '<div class="lot-head"><span class="lot-id">' + esc(x.id) + '<small>' + esc(x.name) + '</small></span>' +
+    var s = S.status || {};
+    var p = lotPct();
+    var edge = locked() ? '#e0342f' : p >= 100 ? '#e0a020' : offline() ? '#8a90ab' : '#2f9e52';
+    var tint = locked() ? 'var(--ng-tint)' : p >= 100 ? 'var(--amber-tint)' : offline() ? 'var(--soft)' : 'var(--ok-tint)';
+    var status = locked() ? 'LOCK' : offline() ? 'NO SIGNAL' : p >= 100 ? 'ครบล็อต' : 'กำลังผลิต';
+
+    return '<article class="card">' +
+        '<div class="card-head"><div><h2>ล็อตที่กำลังเดิน</h2><p>ST-001 · เครื่องเทียบสี</p></div>' +
           '<span class="chip" style="background:' + tint + ';color:' + edge + '">' + esc(status) + '</span></div>' +
         '<div class="lot-head"><span class="lot-pct" style="color:' + edge + '">' + Math.round(p) + '%</span>' +
-          '<span class="lot-meta num">' + fmt(x.ok) + ' / ' + fmt(x.setting) + ' pcs</span></div>' +
+          '<span class="lot-meta num">' + fmt(s.counting) + ' / ' + fmt(s.setting) + ' pcs</span></div>' +
         '<div class="lot-bar"><i style="width:' + p.toFixed(1) + '%;background:' + edge + '"></i></div>' +
-        '<div class="lot-meta"><span>OK ' + fmt(x.ok) + '</span><span>NG ' + fmt(x.ng) + '</span>' +
-          '<span>ETA ' + (x.rate > 0 ? Math.max((x.setting - x.ok) / x.rate, 0).toFixed(1) + ' นาที' : '—') + '</span></div>' +
-        '</button>';
-    }).join('') + '</div>';
-  }
-
-  function reportRows() {
-    return S.st.map(function (x) {
-      var t = x.ok + x.ng, lk = x.ng > x.ngBox;
-      return {
-        id: x.id, name: x.name, ok: x.ok, ng: x.ng,
-        ngPct: (t ? x.ng / t * 100 : 0).toFixed(2),
-        yield: (t ? x.ok / t * 100 : 100).toFixed(1),
-        status: lk ? 'LOCK' : x.offline ? 'NO SIGNAL' : 'ปกติ',
-        edge: lk ? 'var(--ng-ink)' : x.offline ? 'var(--muted)' : 'var(--ok-ink)',
-        tint: lk ? 'var(--ng-tint)' : x.offline ? 'var(--soft)' : 'var(--ok-tint)'
-      };
-    });
+        '<div class="rows">' +
+          '<div><span>OK สะสม</span><b>' + fmt(s.ok_total) + '</b></div>' +
+          '<div><span>NG สะสม</span><b>' + fmt(s.ng_total) + '</b></div>' +
+          '<div><span>คาดว่าจะครบใน</span><b>' + etaMin().toFixed(1) + ' นาที</b></div>' +
+        '</div>' +
+      '</article>' +
+      '<article class="card">' +
+        '<div class="card-head"><div><h2>คำสั่งที่ส่งไปแล้ว</h2><p>ตาราง commands · 50 รายการล่าสุด</p></div></div>' +
+        (S.commands.length ? '<div class="tbl-wrap"><table><thead><tr>' +
+          '<th>เวลา</th><th>คำสั่ง</th><th class="t-right">value</th><th>สถานะ</th>' +
+          '</tr></thead><tbody>' + S.commands.map(function (c) {
+            return '<tr><td class="num">' + esc(thDate(c.created_at)) + '</td>' +
+              '<td class="t-id">' + esc(c.cmd) + '</td>' +
+              '<td class="t-right">' + (c.value == null ? '—' : fmt(c.value)) + '</td>' +
+              '<td><span class="chip" style="background:' +
+                (c.processed ? 'var(--ok-tint)' : 'var(--amber-tint)') + ';color:' +
+                (c.processed ? 'var(--ok-ink)' : 'var(--amber-ink)') + '">' +
+                (c.processed ? 'เครื่องรับแล้ว' : 'รอเครื่องอ่าน') + '</span></td></tr>';
+          }).join('') + '</tbody></table></div>' : '<p class="empty">ยังไม่เคยส่งคำสั่ง</p>') +
+      '</article>';
   }
 
   function viewReport() {
-    var rows = reportRows();
-    var repOk = S.st.reduce(function (a, x) { return a + x.ok; }, 0);
-    var repNg = S.st.reduce(function (a, x) { return a + x.ng; }, 0);
+    var s = S.status || {};
+    var counts = { ok: 0, ng: 0, other: 0 };
+    var byEvent = {};
+    S.events.forEach(function (e) {
+      counts[categoryOf(e.event)]++;
+      byEvent[e.event] = (byEvent[e.event] || 0) + 1;
+    });
+    var rows = Object.keys(byEvent).map(function (k) { return { event: k, n: byEvent[k] }; })
+      .sort(function (a, b) { return b.n - a.n; });
+
     var totals = [
-      { label: 'สถานีที่มอนิเตอร์', value: fmt(S.st.length), ink: 'var(--ink)' },
-      { label: 'OK รวม', value: fmt(repOk), ink: 'var(--ok-ink)' },
-      { label: 'NG รวม', value: fmt(repNg), ink: 'var(--ng-ink)' },
-      { label: 'Yield รวม', value: (repOk + repNg ? repOk / (repOk + repNg) * 100 : 100).toFixed(1) + '%', ink: 'var(--accent)' }
+      { label: 'OK สะสม', value: fmt(s.ok_total), ink: 'var(--ok-ink)' },
+      { label: 'NG สะสม', value: fmt(s.ng_total), ink: 'var(--ng-ink)' },
+      { label: 'Yield รวม', value: yieldPct().toFixed(1) + '%', ink: 'var(--accent)' },
+      { label: 'Event ที่เก็บไว้', value: fmt(S.events.length), ink: 'var(--ink)' }
     ];
 
     return '<section class="grid-tot">' + totals.map(function (t) {
@@ -827,39 +1020,31 @@ tbody tr:last-child td{border-bottom:0}
           '<div class="tot-val num" style="color:' + t.ink + '">' + esc(t.value) + '</div></article>';
       }).join('') + '</section>' +
       '<article class="card">' +
-        '<div class="card-head"><div><h2>สรุปรายสถานี</h2></div>' +
+        '<div class="card-head"><div><h2>สรุปตามชนิด event</h2>' +
+          '<p>OK ' + counts.ok + ' · NG ' + counts.ng + ' · อื่นๆ ' + counts.other + '</p></div>' +
           '<button class="b b-primary b-sm" type="button" data-act="exportReport">↓ Export รายงาน CSV</button></div>' +
-        '<div class="tbl-wrap"><table><thead><tr>' +
-          '<th>สถานี</th><th>ชื่อ</th><th class="t-right">OK</th><th class="t-right">NG</th>' +
-          '<th class="t-right">%NG</th><th class="t-right">Yield</th><th>สถานะ</th>' +
-        '</tr></thead><tbody>' + rows.map(function (r) {
-          return '<tr><td class="t-id">' + esc(r.id) + '</td><td>' + esc(r.name) + '</td>' +
-            '<td class="t-right t-ok">' + fmt(r.ok) + '</td>' +
-            '<td class="t-right t-ng">' + fmt(r.ng) + '</td>' +
-            '<td class="t-right">' + r.ngPct + '%</td>' +
-            '<td class="t-right">' + r.yield + '%</td>' +
-            '<td><span class="chip" style="background:' + r.tint + ';color:' + r.edge + '">' + esc(r.status) + '</span></td></tr>';
-        }).join('') + '</tbody></table></div>' +
+        (rows.length ? '<div class="tbl-wrap"><table><thead><tr>' +
+          '<th>event</th><th>กลุ่ม</th><th class="t-right">จำนวน</th><th class="t-right">สัดส่วน</th>' +
+          '</tr></thead><tbody>' + rows.map(function (r) {
+            var c = categoryOf(r.event);
+            return '<tr><td class="t-id">' + esc(r.event) + '</td>' +
+              '<td>' + (c === 'ok' ? '<span class="t-ok">OK</span>' : c === 'ng' ? '<span class="t-ng">NG</span>' : 'อื่นๆ') + '</td>' +
+              '<td class="t-right">' + fmt(r.n) + '</td>' +
+              '<td class="t-right">' + (r.n / S.events.length * 100).toFixed(1) + '%</td></tr>';
+          }).join('') + '</tbody></table></div>' : '<p class="empty">ยังไม่มี event</p>') +
       '</article>';
   }
 
   /* -------------------------------------------------------------- render */
 
   function render() {
-    var s = current();
-    renderStationSelect();
     renderNav();
-    renderHeader(s);
-
-    if (!s) {
-      el.view.innerHTML = '<article class="card"><p class="empty">ลบสถานีไปหมดแล้ว — กด “คืนค่าสถานีที่ลบ” เพื่อเรียกคืน</p></article>';
-      return;
-    }
-    if (S.view === 'บันทึกผล') el.view.innerHTML = viewLog(s);
+    renderHeader();
+    if (S.view === 'บันทึกผล') el.view.innerHTML = viewLog();
     else if (S.view === 'ประวัติ') el.view.innerHTML = viewHistory();
     else if (S.view === 'ล็อตงาน') el.view.innerHTML = viewLots();
     else if (S.view === 'รายงาน') el.view.innerHTML = viewReport();
-    else el.view.innerHTML = viewDashboard(s);
+    else el.view.innerHTML = viewDashboard();
   }
 
   /* -------------------------------------------------------------- export */
@@ -871,8 +1056,9 @@ tbody tr:last-child td{border-bottom:0}
     if (hostDownloads) {
       hostDownloads.save({ filename: name, data: text }).catch(function (err) {
         var code = err && err.code;
-        if (code === 'declined' || code === 'rate_limited') return;
-        window.alert('บันทึกไฟล์ไม่สำเร็จ (' + (code || 'error') + ')');
+        if (code !== 'declined' && code !== 'rate_limited') {
+          window.alert('บันทึกไฟล์ไม่สำเร็จ (' + (code || 'error') + ')');
+        }
       });
       return;
     }
@@ -884,125 +1070,143 @@ tbody tr:last-child td{border-bottom:0}
   }
 
   function exportEvents() {
-    var s = current();
-    if (!s) return;
-    var rows = [['time', 'type', 'ok', 'ng', 'in_box']].concat(
-      (S.events[s.id] || []).map(function (e) {
-        return [new Date(e.ts).toISOString(), e.type, e.ok, Math.max(e.ng, 0), Math.max(e.box, 0)];
-      }));
-    saveCsv(s.id + '-events.csv', rows);
+    saveCsv('okng-events.csv', [['id', 'event', 'created_at']].concat(
+      S.events.map(function (e) { return [e.id, e.event, new Date(e.created_at).toISOString()]; })));
   }
 
   function exportReport() {
-    var rows = [['station', 'name', 'ok', 'ng', 'ng_pct', 'yield', 'status']].concat(
-      reportRows().map(function (r) { return [r.id, r.name, r.ok, r.ng, r.ngPct, r.yield, r.status]; }));
-    saveCsv('station-report.csv', rows);
+    var s = S.status || {};
+    saveCsv('okng-report.csv', [
+      ['field', 'value'],
+      ['ok_total', s.ok_total], ['ng_total', s.ng_total],
+      ['yield_pct', yieldPct().toFixed(2)],
+      ['counting', s.counting], ['setting', s.setting],
+      ['rate', s.rate], ['lock_old', s.lock_old], ['lock_auto', s.lock_auto],
+      ['d9', s.d9], ['d11', s.d11], ['d12', s.d12], ['full_counter', s.full_counter],
+      ['device_seen_at', s.device_seen_at], ['exported_at', new Date().toISOString()]
+    ]);
   }
 
-  /* ------------------------------------------------------------- actions */
+  /* ------------------------------------------------------------- commands */
 
-  function patch(id, fn) {
-    S.st = S.st.map(function (x) { return x.id === id ? fn(x) : x; });
+  async function sendCommand(key) {
+    var c = CFG.commands[key];
+    if (!c) return;
+    var warn = c.confirmed ? '' :
+      '\n\n⚠ คำสั่งนี้ยังไม่ได้ยืนยันกับ firmware — ถ้าชื่อไม่ตรง เครื่องจะไม่ทำอะไร';
+    if (!window.confirm('ส่งคำสั่ง "' + c.cmd + '" ไปที่เครื่อง?' + warn)) return;
+
+    var r = await sb.from('commands').insert({ cmd: c.cmd });
+    if (r.error) {
+      setNotice('ส่งคำสั่งไม่สำเร็จ: ' + r.error.message, 'error');
+    } else {
+      setNotice('ส่งคำสั่ง ' + c.cmd + ' แล้ว — รอเครื่องอ่าน', 'warn');
+    }
+    render();
   }
+
+  /* --------------------------------------------------------------- look */
 
   function applyLook() {
-    document.documentElement.setAttribute('data-theme', S.theme);
-    document.documentElement.setAttribute('data-font', S.font);
-    document.documentElement.setAttribute('data-tv', S.tv ? 'on' : 'off');
+    var r = document.documentElement;
+    r.setAttribute('data-theme', S.theme);
+    r.setAttribute('data-font', S.font);
+    r.setAttribute('data-tv', S.tv ? 'on' : 'off');
     el.btnTv.textContent = S.tv ? 'ออกจากโหมด TV' : 'โหมด TV';
     try {
       localStorage.setItem('okng-look', JSON.stringify({ theme: S.theme, font: S.font, tv: S.tv }));
     } catch (e) { /* ignore */ }
   }
 
+  /* --------------------------------------------------------------- auth */
+
+  function showGate(show) {
+    $('gate').hidden = !show;
+    $('app').hidden = show;
+  }
+
+  async function onLogin(e) {
+    e.preventDefault();
+    var err = $('loginError');
+    err.hidden = true;
+    $('btnLogin').disabled = true;
+    $('btnLogin').textContent = 'กำลังเข้าสู่ระบบ…';
+    try {
+      var r = await sb.auth.signInWithPassword({
+        email: $('email').value.trim(), password: $('password').value
+      });
+      if (r.error) throw r.error;
+      await startApp();
+    } catch (ex) {
+      err.textContent = ex.message === 'Invalid login credentials'
+        ? 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' : (ex.message || String(ex));
+      err.hidden = false;
+    } finally {
+      $('btnLogin').disabled = false;
+      $('btnLogin').textContent = 'เข้าสู่ระบบ';
+    }
+  }
+
+  async function startApp() {
+    showGate(false);
+    await loadAll();
+    subscribe();
+  }
+
+  /* -------------------------------------------------------------- wiring */
+
   function bind() {
+    $('loginForm').addEventListener('submit', onLogin);
+
     el.nav.addEventListener('click', function (e) {
       var b = e.target.closest('[data-view]');
-      if (!b) return;
-      S.view = b.dataset.view;
-      render();
+      if (b) { S.view = b.dataset.view; render(); }
     });
 
-    el.side.addEventListener('change', function () { S.sel = this.value; render(); });
-
-    el.btnRemove.addEventListener('click', function () {
-      var s = current();
-      if (!s || S.st.length <= 1) return;
-      S.st = S.st.filter(function (x) { return x.id !== s.id; });
-      S.removed = S.removed.concat(s.id);
-      S.sel = S.st.length ? S.st[0].id : null;
-      render();
-    });
-
-    el.btnRestore.addEventListener('click', function () {
-      S.st = S.all.slice();
-      S.removed = [];
-      if (!S.sel || !current()) S.sel = S.st[0].id;
-      render();
-    });
-
-    el.btnClearLock.addEventListener('click', function () {
-      var s = current();
-      if (!s) return;
-      patch(s.id, function (x) { return Object.assign({}, x, { ngBox: x.ng, lockSec: 0 }); });
-      render();
-    });
-
-    el.btnRefresh.addEventListener('click', function () { S.clock = hhmm(new Date()); render(); });
+    el.btnRefresh.addEventListener('click', loadAll);
     el.btnExport.addEventListener('click', exportEvents);
-
     el.search.addEventListener('input', function () { S.q = this.value; render(); });
+
+    el.btnClearLock.addEventListener('click', function () { sendCommand('resetNg'); });
+
+    el.view.addEventListener('click', function (e) {
+      var cmd = e.target.closest('[data-cmd]');
+      if (cmd) { sendCommand(cmd.dataset.cmd); return; }
+      var act = e.target.closest('[data-act]');
+      if (act && act.dataset.act === 'exportReport') exportReport();
+    });
 
     el.theme.addEventListener('change', function () { S.theme = this.value; applyLook(); });
     el.font.addEventListener('change', function () { S.font = this.value; applyLook(); });
     el.btnTv.addEventListener('click', function () { S.tv = !S.tv; applyLook(); });
 
-    el.view.addEventListener('click', function (e) {
-      var lot = e.target.closest('[data-lot]');
-      if (lot) { S.sel = lot.dataset.lot; S.view = 'แดชบอร์ด'; render(); return; }
-
-      var act = e.target.closest('[data-act]');
-      if (!act) return;
-      var s = current();
-      if (act.dataset.act === 'exportReport') { exportReport(); return; }
-      if (!s) return;
-      if (act.dataset.act === 'addOk') {
-        patch(s.id, function (x) { return Object.assign({}, x, { ok: x.ok + 1 }); });
-      } else if (act.dataset.act === 'addNg') {
-        S.events[s.id] = [{ ts: Date.now(), type: 'NG', ok: s.ok, ng: s.ng + 1, box: s.ngBox }]
-          .concat(S.events[s.id] || []);
-        patch(s.id, function (x) { return Object.assign({}, x, { ng: x.ng + 1 }); });
-      }
-      render();
+    $('btnLogout').addEventListener('click', async function () {
+      await sb.auth.signOut();
+      location.reload();
     });
-  }
-
-  function tick() {
-    S.clock = hhmm(new Date());
-    S.st = S.st.map(function (s) {
-      if (s.offline) return s;
-      var locked = s.ng > s.ngBox;
-      return Object.assign({}, s, {
-        ok: locked ? s.ok : Math.min(s.ok + (Math.random() < s.rate / 12 ? 1 : 0), s.setting),
-        lockSec: locked ? s.lockSec + 1 : 0
-      });
-    });
-    render();
   }
 
   function initDownloads() {
     if (!window.claude || typeof window.claude.use !== 'function') return;
     window.claude.use('downloads').then(function (dl) {
       hostDownloads = dl;
-      if (!dl) {
-        el.btnExport.hidden = true;
-        var r = el.view.querySelector('[data-act="exportReport"]');
-        if (r) r.hidden = true;
-      }
+      if (!dl) el.btnExport.hidden = true;
     }, function () { el.btnExport.hidden = true; });
   }
 
-  function boot() {
+  /* ---------------------------------------------------------------- boot */
+
+  async function boot() {
+    el = {
+      nav: $('nav'), view: $('view'), crumb: $('crumbView'),
+      sub: $('stationSub'), deviceSub: $('deviceSub'), deviceStamp: $('deviceStamp'),
+      lock: $('lockBanner'), lockDetail: $('lockDetail'), btnClearLock: $('btnClearLock'),
+      banner: $('banner'), health: $('health'), healthText: $('healthText'),
+      liveBadge: $('liveBadge'), liveText: $('liveText'),
+      search: $('search'), btnRefresh: $('btnRefresh'), btnExport: $('btnExport'),
+      btnTv: $('btnTv'), theme: $('themeSelect'), font: $('fontSelect')
+    };
+
     try {
       var saved = JSON.parse(localStorage.getItem('okng-look') || 'null');
       if (saved) {
@@ -1015,15 +1219,23 @@ tbody tr:last-child td{border-bottom:0}
     el.font.value = S.font;
     applyLook();
 
-    S.all = buildStations();
-    S.st = S.all.slice();
-    S.sel = S.st[0].id;
-    S.st.forEach(function (s) { S.events[s.id] = seedEvents(s); });
-
     bind();
-    render();
     initDownloads();
-    setInterval(tick, 1000);
+
+    if (!window.supabase || !CFG.supabaseUrl || !CFG.supabaseKey) {
+      showGate(true);
+      var err = $('loginError');
+      err.textContent = 'ยังไม่ได้ตั้งค่า Supabase — ใส่ supabaseUrl และ supabaseKey ใน assets/config.js';
+      err.hidden = false;
+      return;
+    }
+
+    sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey);
+    var session = await sb.auth.getSession();
+    if (session.data && session.data.session) await startApp();
+    else showGate(true);
+
+    setInterval(function () { if (!$('app').hidden) renderHeader(); }, 30000);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
