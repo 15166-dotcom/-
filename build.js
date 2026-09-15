@@ -1,6 +1,8 @@
-/* Builds dist/okng-monitor-v3.html — a single self-contained file that can be
-   dropped on any static host, and the source for the published Artifact.
-   Usage: node build.js            */
+/* Builds the two shipped bundles from index.html + assets/.
+     dist/okng-monitor-v3.html  complete document for any static host
+     dist/artifact.html         fragment for the Artifact publisher, which
+                                supplies doctype, charset and viewport itself
+   Usage: node build.js */
 const fs = require('fs');
 const path = require('path');
 
@@ -8,44 +10,15 @@ const html = fs.readFileSync('index.html', 'utf8');
 const css = fs.readFileSync('assets/styles.css', 'utf8');
 const js = fs.readFileSync('assets/app.js', 'utf8');
 
-// --- theme tokens -----------------------------------------------------------
-// The artifact host renders in the viewer's theme with three states: an explicit
-// data-theme stamp (either value) or no stamp at all (system). This design is
-// dark-first, so bare :root carries dark and the light palette is applied both
-// by an explicit [data-theme="light"] stamp and by an unstamped light OS.
-const lightBlock = css.match(/:root\[data-theme="light"\]\{([\s\S]*?)\n\}/);
-if (!lightBlock) throw new Error('light token block not found in styles.css');
-const lightTokens = lightBlock[1];
-const cssThemed = css.replace(
-  lightBlock[0],
-  lightBlock[0] +
-  '\n\n@media (prefers-color-scheme: light){\n  :root:not([data-theme="dark"]){' + lightTokens + '\n  }\n}'
-);
-
-// --- page body --------------------------------------------------------------
 const body = html
   .replace(/[\s\S]*<body>/, '')
   .replace(/<\/body>[\s\S]*/, '')
   .replace(/\s*<script src="assets\/app\.js"><\/script>/, '')
   .trim();
 
-const fontLink = '<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">';
+const fontLink = '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&family=Prompt:wght@400;600;700;800&family=IBM+Plex+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">';
 
-// --- two outputs ------------------------------------------------------------
-// 1. standalone: a complete document for dropping on any static host. It must
-//    carry its own <meta charset> — a host that serves .html without a charset
-//    parameter otherwise leaves the browser to guess, and the Thai text in this
-//    page comes out as mojibake.
-// 2. artifact: the same page as a fragment for the Artifact publisher, which
-//    supplies the doctype, charset and viewport itself.
-const head = [
-  '<title>OKNG Monitor v3</title>',
-  fontLink,
-  '<style>',
-  cssThemed.trim(),
-  '</style>'
-].join('\n');
-
+const head = ['<title>OKNG Monitor v3</title>', fontLink, '<style>', css.trim(), '</style>'].join('\n');
 const page = [body, '<script>', js.trim(), '<' + '/script>'].join('\n');
 
 const standalone = [
@@ -54,8 +27,8 @@ const standalone = [
   '<head>',
   '<meta charset="utf-8">',
   '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">',
-  '<meta name="description" content="แดชบอร์ดมอนิเตอร์ผลการตรวจสอบคุณภาพ OK/NG แบบเรียลไทม์">',
-  '<meta name="theme-color" content="#0b0f14">',
+  '<meta name="description" content="ระบบเก็บข้อมูลการเทสเครื่องเทียบสี — ติดตาม OK/NG, LOCK, ล็อตงาน และรายงานรายสถานี">',
+  '<meta name="theme-color" content="#f4f6fb">',
   head,
   '</head>',
   '<body>',

@@ -1,66 +1,66 @@
 # OKNG Monitor v3
 
-แดชบอร์ดติดตามผลการตรวจสอบคุณภาพ **OK / NG** แบบเรียลไทม์
-(Real-time OK/NG quality inspection monitor)
+**ระบบเก็บข้อมูลการเทส — เครื่องเทียบสี (Color Inspection System)**
 
-## คุณสมบัติ
+เว็บแอปติดตามผลตรวจ OK/NG รายสถานีแบบเรียลไทม์ สร้างตามดีไซน์ต้นฉบับ `OKNG Monitor v3.dc.html`
 
-- **KPI สรุปกะ** — จำนวนตรวจทั้งหมด, OK, NG, Yield (เกจครึ่งวงกลมเทียบเป้าหมาย), อัตราการผลิต, NG ต่อเนื่อง
-- **กราฟแนวโน้ม Yield** — เส้น Yield ต่อช่วงเวลา + ค่าเฉลี่ยสะสม + เส้นเป้าหมาย เลือกช่วง 30 / 60 / 120 ได้
-- **Pareto สาเหตุของเสีย** — จัดอันดับประเภท defect พร้อมสัดส่วน %
-- **สถานะรายสถานี** — 6 สถานีบน 3 สายการผลิต พร้อมสถานะ RUNNING / WATCH / ALARM / IDLE
-- **บันทึกการตรวจสด** — ตารางเรียลไทม์ กรอง OK/NG และส่งออก CSV (UTF-8 BOM รองรับภาษาไทยใน Excel)
-- **แจ้งเตือน** เมื่อพบ NG ต่อเนื่องถึงเกณฑ์
-- ธีมมืด/สว่าง (จำค่าไว้ใน localStorage), responsive ถึงจอมือถือ, รองรับ `prefers-reduced-motion`
+## หน้าจอ
 
-## คีย์ลัด
-
-| ปุ่ม | การทำงาน |
+| เมนู | เนื้อหา |
 |---|---|
-| `Space` | หยุด / เริ่มการรับข้อมูล |
-| `R` | รีเซ็ตข้อมูลกะ |
+| **แดชบอร์ด** | KPI 5 ตัว (OK/NG สะสม, Yield, อัตราผลิต, Downtime), กราฟ OK/NG รายชั่วโมง, เกจความก้าวหน้าล็อต, สถานะ I/O, Yield Trend, ตาราง NG events |
+| **บันทึกผล** | ปุ่มบันทึก OK/NG และ 10 รายการล่าสุด |
+| **ประวัติ** | event ทุกสถานีรวมกัน สูงสุด 300 รายการ กรองด้วยช่องค้นหา |
+| **ล็อตงาน** | การ์ดทุกสถานี พร้อม % ความคืบหน้า, สถานะ, ETA — คลิกเพื่อกระโดดไปแดชบอร์ดของสถานีนั้น |
+| **รายงาน** | ยอดรวมทุกสถานี + ตารางสรุปรายสถานี + Export รายงาน CSV |
+
+## กลไก LOCK
+
+เมื่อ `NG > NG ในกล่อง` สถานีจะเข้าสถานะ **LOCK** — แถบแดงขึ้นด้านบน, ตัวนับ OK หยุดเดิน, และ `lockSec` เดินขึ้นทุกวินาที
+กด **เคลียร์ NG/LOCK** เพื่อบันทึกว่า NG เข้ากล่องครบแล้ว ระบบจะปลดล็อกและนับต่อ
+
+## การปรับแต่ง
+
+- **โทนสี** — Cool blue / Organic cream / Night (จอ TV)
+- **ตัวหนังสือ** — Sarabun / Prompt / IBM Plex Sans Thai
+- **โหมด TV** — ขยายตัวอักษรทั้งหน้าสำหรับจอในไลน์ผลิต
+
+ทั้งสามค่าถูกจำไว้ใน localStorage
 
 ## โครงสร้าง
 
 ```
-index.html                   โครงหน้า
-assets/styles.css            ธีมและเลย์เอาต์ (CSS variables, ไม่มี framework)
-assets/app.js                simulation engine + renderer (vanilla JS, ไม่มี dependency)
+index.html                   โครงหน้า + แถบข้าง
+assets/styles.css            ธีมทั้งสามโทน + เลย์เอาต์ (CSS variables, ไม่มี framework)
+assets/app.js                logic ทั้งหมด (vanilla JS, ไม่มี dependency)
 build.js                     สร้างไฟล์รวมใน dist/
 dist/okng-monitor-v3.html    ไฟล์เดียวจบ — วางบน static host ไหนก็ได้
 dist/artifact.html           เวอร์ชัน fragment สำหรับ Claude Artifact
 netlify.toml                 การตั้งค่า deploy
 ```
 
-## Build
+## Build / รันในเครื่อง
 
 ```bash
-node build.js
+node build.js                 # สร้าง dist/
+python3 -m http.server 8080   # เปิด http://localhost:8080
 ```
 
-## รันในเครื่อง
+## ต่อข้อมูลจริง
 
-```bash
-python3 -m http.server 8080
-# เปิด http://localhost:8080
-```
+ตอนนี้ข้อมูลถูกสร้างจำลองในเบราว์เซอร์ (ตาม logic ของดีไซน์ต้นฉบับ) ยังไม่ได้ต่อ Supabase จริง
+จุดที่ต้องแก้ใน `assets/app.js`:
 
-## หมายเหตุเรื่องข้อมูล
-
-ข้อมูลในหน้านี้เป็น **ข้อมูลจำลอง (simulated feed)** ที่สร้างในเบราว์เซอร์ ไม่ได้ต่อกับ PLC/MES จริง
-หากต้องการต่อกับข้อมูลจริง ให้แทนที่ฟังก์ชัน `tick()` / `makeInspection()` ใน `assets/app.js`
-ด้วยการดึงข้อมูลจาก WebSocket หรือ REST endpoint ของระบบจริง โดยส่งเรคอร์ดรูปแบบเดียวกัน
-(`{ t, serial, station, line, result, defect, value, unit }`) เข้าสู่ `S.log` และ `S.curBucket`
-
-## การตั้งค่า
-
-ปรับค่าได้ที่ `CONFIG` ด้านบนของ `assets/app.js`
-
-| ค่า | ความหมาย |
+| ฟังก์ชัน | แทนที่ด้วย |
 |---|---|
-| `targetYield` | เป้าหมาย Yield (%) |
-| `shiftTargetQty` | เป้าหมายจำนวนชิ้นต่อกะ |
-| `ngStreakAlarm` | จำนวน NG ต่อเนื่องที่จะแจ้งเตือน |
-| `stationAlarmYield` / `stationWarnYield` | เกณฑ์ ALARM / WATCH รายสถานี |
+| `buildStations()` | ดึงรายการสถานีจากตาราง `stations` |
+| `seedEvents()` | ดึง event ย้อนหลังจากตาราง `events` |
+| `hoursOf()` | query สรุป OK/NG รายชั่วโมง |
+| `tick()` | Supabase Realtime subscription แทน `setInterval` |
 
-รายชื่อสถานีอยู่ใน `STATIONS` และประเภทของเสียอยู่ใน `DEFECTS`
+รูปแบบเรคอร์ด event: `{ ts, type: 'NG' | 'NG_BOXED', ok, ng, box }`
+
+## ค่าคงที่
+
+ปรับได้ที่หัวไฟล์ `assets/app.js` — `STATION_COUNT`, `NAMES` (ชื่อสถานี), `NAV` (เมนู)
+ค่า `setting` (เป้าหมายต่อล็อต) ตั้งไว้ที่ 1,000 ชิ้นต่อสถานี
