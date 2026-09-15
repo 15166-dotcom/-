@@ -23,10 +23,19 @@
 ## โครงสร้าง
 
 ```
-index.html          โครงหน้า
-assets/styles.css   ธีมและเลย์เอาต์ (CSS variables, ไม่มี framework)
-assets/app.js       simulation engine + renderer (vanilla JS, ไม่มี dependency)
-netlify.toml        การตั้งค่า deploy
+index.html                   โครงหน้า
+assets/styles.css            ธีมและเลย์เอาต์ (CSS variables, ไม่มี framework)
+assets/app.js                simulation engine + renderer (vanilla JS, ไม่มี dependency)
+build.js                     สร้างไฟล์รวมใน dist/
+dist/okng-monitor-v3.html    ไฟล์เดียวจบ — วางบน static host ไหนก็ได้
+dist/artifact.html           เวอร์ชัน fragment สำหรับ Claude Artifact
+netlify.toml                 การตั้งค่า deploy
+```
+
+## Build
+
+```bash
+node build.js
 ```
 
 ## รันในเครื่อง

@@ -31,19 +31,44 @@ const body = html
 
 const fontLink = '<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">';
 
-const out = [
+// --- two outputs ------------------------------------------------------------
+// 1. standalone: a complete document for dropping on any static host. It must
+//    carry its own <meta charset> — a host that serves .html without a charset
+//    parameter otherwise leaves the browser to guess, and the Thai text in this
+//    page comes out as mojibake.
+// 2. artifact: the same page as a fragment for the Artifact publisher, which
+//    supplies the doctype, charset and viewport itself.
+const head = [
   '<title>OKNG Monitor v3</title>',
   fontLink,
   '<style>',
   cssThemed.trim(),
-  '</style>',
-  body,
-  '<script>',
-  js.trim(),
-  '</script>',
+  '</style>'
+].join('\n');
+
+const page = [body, '<script>', js.trim(), '<' + '/script>'].join('\n');
+
+const standalone = [
+  '<!doctype html>',
+  '<html lang="th">',
+  '<head>',
+  '<meta charset="utf-8">',
+  '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">',
+  '<meta name="description" content="แดชบอร์ดมอนิเตอร์ผลการตรวจสอบคุณภาพ OK/NG แบบเรียลไทม์">',
+  '<meta name="theme-color" content="#0b0f14">',
+  head,
+  '</head>',
+  '<body>',
+  page,
+  '</body>',
+  '</html>',
   ''
 ].join('\n');
 
+const artifact = [head, page, ''].join('\n');
+
 fs.mkdirSync('dist', { recursive: true });
-fs.writeFileSync(path.join('dist', 'okng-monitor-v3.html'), out);
-console.log('dist/okng-monitor-v3.html —', (out.length / 1024).toFixed(1), 'KB');
+fs.writeFileSync(path.join('dist', 'okng-monitor-v3.html'), standalone);
+fs.writeFileSync(path.join('dist', 'artifact.html'), artifact);
+console.log('dist/okng-monitor-v3.html —', (standalone.length / 1024).toFixed(1), 'KB (standalone)');
+console.log('dist/artifact.html        —', (artifact.length / 1024).toFixed(1), 'KB (artifact fragment)');
