@@ -75,7 +75,7 @@ body{
 
 /* ---------- Top bar ---------- */
 .topbar{
-  position:sticky;top:0;z-index:30;
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:30;
   display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;
   padding:calc(14px + env(safe-area-inset-top,0px)) clamp(16px,3vw,28px) 14px;
   background:color-mix(in srgb, var(--bg) 88%, transparent);
