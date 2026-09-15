@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OKNG Monitor v3</title>
+<meta name="description" content="แดชบอร์ดมอนิเตอร์ผลการตรวจสอบคุณภาพ OK/NG แบบเรียลไทม์">
+<meta name="theme-color" content="#0b0f14">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0f14'/%3E%3Cpath d='M7 17l4 4 9-10' stroke='%2322c55e' stroke-width='3.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='24' cy='9' r='4' fill='%23ef4444'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">ข้ามไปเนื้อหาหลัก</a>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8"/><path d="M7 17l4 4 9-10"/><circle cx="24" cy="9" r="4"/></svg>
+    </div>
+    <div class="brand-text">
+      <h1>OKNG Monitor <span class="ver">v3</span></h1>
+      <p>ระบบติดตามผลตรวจสอบคุณภาพแบบเรียลไทม์</p>
+    </div>
+  </div>
+
+  <div class="topbar-meta">
+    <div class="meta-item">
+      <span class="meta-label">สายการผลิต</span>
+      <select id="lineSelect" class="meta-select" aria-label="เลือกสายการผลิต">
+        <option value="ALL">ทุกสาย (All lines)</option>
+        <option value="A">Line A — Assembly</option>
+        <option value="B">Line B — Welding</option>
+        <option value="C">Line C — Painting</option>
+      </select>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">กะ / Shift</span>
+      <strong id="shiftName">—</strong>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">เวลาปัจจุบัน</span>
+      <strong id="clock" class="mono">--:--:--</strong>
+    </div>
+    <div class="conn" id="connBadge" data-state="live">
+      <span class="dot" aria-hidden="true"></span>
+      <span id="connText">LIVE</span>
+    </div>
+    <div class="controls">
+      <button id="btnPause" class="btn" type="button" aria-pressed="false">
+        <span class="ic" aria-hidden="true">❚❚</span><span class="lbl">หยุดชั่วคราว</span>
+      </button>
+      <button id="btnReset" class="btn btn-ghost" type="button">
+        <span class="ic" aria-hidden="true">⟲</span><span class="lbl">รีเซ็ตกะ</span>
+      </button>
+      <button id="btnTheme" class="btn btn-icon" type="button" aria-label="สลับธีมสว่าง/มืด" title="สลับธีม">
+        <span aria-hidden="true">◐</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div id="alertBar" class="alert-bar" hidden role="alert">
+  <span class="alert-ic" aria-hidden="true">▲</span>
+  <span id="alertText"></span>
+  <button id="alertClose" class="alert-close" type="button" aria-label="ปิดการแจ้งเตือน">×</button>
+</div>
+
+<main id="main">
+
+  <!-- ===== KPI ===== -->
+  <section class="kpis" aria-label="ตัวชี้วัดหลัก">
+    <article class="kpi">
+      <header><span class="kpi-label">ตรวจทั้งหมด</span><span class="kpi-sub">Total inspected</span></header>
+      <strong class="kpi-value mono" id="kpiTotal">0</strong>
+      <footer><span class="kpi-foot">เป้าหมายกะ <b class="mono" id="kpiTargetQty">0</b> ชิ้น</span></footer>
+      <div class="kpi-bar"><i id="kpiTargetBar" style="width:0%"></i></div>
+    </article>
+
+    <article class="kpi kpi-ok">
+      <header><span class="kpi-label">ผ่าน (OK)</span><span class="kpi-sub">Pass</span></header>
+      <strong class="kpi-value mono" id="kpiOk">0</strong>
+      <footer><span class="kpi-foot" id="kpiOkPct">0.00%</span></footer>
+      <div class="kpi-bar ok"><i id="kpiOkBar" style="width:0%"></i></div>
+    </article>
+
+    <article class="kpi kpi-ng">
+      <header><span class="kpi-label">ไม่ผ่าน (NG)</span><span class="kpi-sub">Fail</span></header>
+      <strong class="kpi-value mono" id="kpiNg">0</strong>
+      <footer><span class="kpi-foot" id="kpiNgPct">0.00%</span></footer>
+      <div class="kpi-bar ng"><i id="kpiNgBar" style="width:0%"></i></div>
+    </article>
+
+    <article class="kpi kpi-yield" id="yieldCard">
+      <header><span class="kpi-label">Yield</span><span class="kpi-sub">อัตราของดี</span></header>
+      <div class="gauge-wrap">
+        <svg class="gauge" viewBox="0 0 120 70" aria-hidden="true">
+          <path class="gauge-track" d="M10 62 A50 50 0 0 1 110 62"/>
+          <path class="gauge-fill" id="gaugeFill" d="M10 62 A50 50 0 0 1 110 62"/>
+          <line class="gauge-target" id="gaugeTargetTick" x1="60" y1="12" x2="60" y2="22"/>
+        </svg>
+        <div class="gauge-center">
+          <strong class="mono" id="kpiYield">0.0<small>%</small></strong>
+          <span id="yieldDelta" class="delta">เทียบเป้า —</span>
+        </div>
+      </div>
+      <footer><span class="kpi-foot">เป้าหมาย <b class="mono" id="targetLabel">98.5%</b></span></footer>
+    </article>
+
+    <article class="kpi">
+      <header><span class="kpi-label">อัตราการผลิต</span><span class="kpi-sub">Throughput</span></header>
+      <strong class="kpi-value mono" id="kpiRate">0<small> ชิ้น/นาที</small></strong>
+      <footer><span class="kpi-foot">รอบเฉลี่ย <b class="mono" id="kpiCycle">0.0 s</b></span></footer>
+      <div class="spark" id="rateSpark" aria-hidden="true"></div>
+    </article>
+
+    <article class="kpi">
+      <header><span class="kpi-label">NG ต่อเนื่อง</span><span class="kpi-sub">Consecutive NG</span></header>
+      <strong class="kpi-value mono" id="kpiStreak">0</strong>
+      <footer><span class="kpi-foot">สูงสุดในกะ <b class="mono" id="kpiStreakMax">0</b></span></footer>
+      <div class="kpi-bar warn"><i id="kpiStreakBar" style="width:0%"></i></div>
+    </article>
+  </section>
+
+  <div class="grid">
+
+    <!-- ===== Trend ===== -->
+    <section class="panel panel-trend" aria-label="แนวโน้ม Yield">
+      <header class="panel-head">
+        <div>
+          <h2>แนวโน้ม Yield</h2>
+          <p>Yield trend — ย้อนหลัง <span id="trendWindowLabel">60</span> ช่วงเวลา</p>
+        </div>
+        <div class="seg" role="group" aria-label="ช่วงเวลา">
+          <button class="seg-btn is-active" data-range="30" type="button">30</button>
+          <button class="seg-btn" data-range="60" type="button">60</button>
+          <button class="seg-btn" data-range="120" type="button">120</button>
+        </div>
+      </header>
+      <div class="chart-wrap">
+        <svg id="trendChart" class="chart" viewBox="0 0 800 260" preserveAspectRatio="none" role="img" aria-label="กราฟแนวโน้ม Yield"></svg>
+        <div class="chart-legend">
+          <span><i class="sw sw-yield"></i>Yield ต่อช่วง</span>
+          <span><i class="sw sw-avg"></i>ค่าเฉลี่ยสะสม</span>
+          <span><i class="sw sw-target"></i>เป้าหมาย</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Pareto ===== -->
+    <section class="panel panel-pareto" aria-label="สาเหตุของเสีย">
+      <header class="panel-head">
+        <div>
+          <h2>สาเหตุของเสีย</h2>
+          <p>Defect Pareto — จัดอันดับตามจำนวน</p>
+        </div>
+        <span class="pill" id="paretoTotal">0 NG</span>
+      </header>
+      <ul class="pareto" id="paretoList"></ul>
+      <p class="empty" id="paretoEmpty">ยังไม่พบของเสียในกะนี้ — Yield 100%</p>
+    </section>
+
+    <!-- ===== Stations ===== -->
+    <section class="panel panel-stations" aria-label="สถานะสถานีตรวจ">
+      <header class="panel-head">
+        <div>
+          <h2>สถานีตรวจสอบ</h2>
+          <p>Inspection stations — สถานะและ Yield รายสถานี</p>
+        </div>
+        <span class="pill" id="stationSummary">—</span>
+      </header>
+      <div class="stations" id="stationGrid"></div>
+    </section>
+
+    <!-- ===== Log ===== -->
+    <section class="panel panel-log" aria-label="บันทึกการตรวจล่าสุด">
+      <header class="panel-head">
+        <div>
+          <h2>บันทึกล่าสุด</h2>
+          <p>Live inspection log</p>
+        </div>
+        <div class="seg" role="group" aria-label="ตัวกรองผลตรวจ">
+          <button class="seg-btn is-active" data-filter="ALL" type="button">ทั้งหมด</button>
+          <button class="seg-btn" data-filter="OK" type="button">OK</button>
+          <button class="seg-btn" data-filter="NG" type="button">NG</button>
+        </div>
+      </header>
+      <div class="table-wrap">
+        <table class="log">
+          <thead>
+            <tr>
+              <th scope="col">เวลา</th>
+              <th scope="col">Serial</th>
+              <th scope="col">สถานี</th>
+              <th scope="col">ผล</th>
+              <th scope="col">ค่าที่วัด</th>
+              <th scope="col">หมายเหตุ</th>
+            </tr>
+          </thead>
+          <tbody id="logBody"></tbody>
+        </table>
+      </div>
+      <footer class="panel-foot">
+        <span id="logCount">0 รายการ</span>
+        <button id="btnExport" class="btn btn-ghost btn-sm" type="button">
+          <span class="ic" aria-hidden="true">↓</span><span class="lbl">ส่งออก CSV</span>
+        </button>
+      </footer>
+    </section>
+
+  </div>
+</main>
+
+<footer class="sitefoot">
+  <span>OKNG Monitor v3 — ข้อมูลจำลองเพื่อการสาธิต (simulated feed)</span>
+  <span class="mono" id="uptime">uptime 00:00</span>
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>
