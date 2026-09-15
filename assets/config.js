@@ -2,11 +2,11 @@
    OKNG Monitor v3 — connection and device vocabulary
    ========================================================================== */
 window.OKNG_CONFIG = {
-  /* Supabase project: color-inspection-dashboard (ap-southeast-1).
+  /* Supabase project: 15166-dotcom's Project, org "เครื่องเทียบสี" (ap-northeast-2).
      The publishable key is meant to be public — row access is enforced by RLS,
      which only grants reads to signed-in (authenticated) users. */
-  supabaseUrl: 'https://ufmwcstlzygrnmzkpgbs.supabase.co',
-  supabaseKey: 'sb_publishable_45oScSoydZ9JSOmVoQ9ibQ_LvP8_g5m',
+  supabaseUrl: 'https://yfygpxvprvhlprsivkkq.supabase.co',
+  supabaseKey: 'sb_publishable_SmnBtZ_tK2f4fL3dIgUQow_cjWmWkwF',
 
   /* The status table is a single row pinned to id = 1 (one machine). */
   statusId: 1,

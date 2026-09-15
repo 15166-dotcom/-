@@ -56,10 +56,15 @@ python3 -m http.server 8080   # เปิด http://localhost:8080
 | `event_log` | กราฟ OK/NG รายชั่วโมง, ตาราง event, หน้าประวัติ |
 | `commands` | ปุ่มเคลียร์ NG/LOCK และคำสั่งอื่น (insert), หน้าล็อตงานแสดงคิวคำสั่ง |
 
-### ติดตั้ง
+### โปรเจกต์ที่ต่ออยู่
+
+org **เครื่องเทียบสี** → `15166-dotcom's Project` (`yfygpxvprvhlprsivkkq`, ap-northeast-2)
+schema + RLS + realtime ติดตั้งแล้ว ค่าเชื่อมต่ออยู่ใน `assets/config.js`
+
+### ติดตั้งบนโปรเจกต์อื่น
 
 1. รัน `supabase/schema.sql` ใน SQL Editor ของโปรเจกต์
-2. สร้าง user ที่ Authentication → Users → Add user
+2. สร้าง user ที่ Authentication → Users → Add user (เปิด Auto Confirm)
 3. ใส่ `supabaseUrl` + `supabaseKey` (publishable) ใน `assets/config.js`
 4. `node build.js` แล้ว deploy
 
