@@ -56,6 +56,22 @@ python3 -m http.server 8080   # เปิด http://localhost:8080
 | `event_log` | กราฟ OK/NG รายชั่วโมง, ตาราง event, หน้าประวัติ |
 | `commands` | ปุ่มเคลียร์ NG/LOCK และคำสั่งอื่น (insert), หน้าล็อตงานแสดงคิวคำสั่ง |
 
+### ที่อยู่ของเว็บ
+
+| ที่ | URL |
+|---|---|
+| Netlify (หลัก) | https://magical-entremet-691865.netlify.app/ |
+| Supabase Edge Function | https://yfygpxvprvhlprsivkkq.supabase.co/functions/v1/okng |
+
+Netlify เป็น static host จริง เร็วกว่าและไม่กิน quota — Edge Function เป็นทางเลือกสำรอง
+อัปเดตหน้าเว็บบน Edge Function:
+
+```bash
+node build.js
+node scripts-build-edge.js
+supabase functions deploy okng --no-verify-jwt --project-ref yfygpxvprvhlprsivkkq
+```
+
 ### โปรเจกต์ที่ต่ออยู่
 
 org **เครื่องเทียบสี** → `15166-dotcom's Project` (`yfygpxvprvhlprsivkkq`, ap-northeast-2)
