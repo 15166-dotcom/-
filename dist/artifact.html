@@ -1213,11 +1213,19 @@ window.OKNG_CONFIG = {
     bind();
     initDownloads();
 
-    if (!window.supabase || !CFG.supabaseUrl || !CFG.supabaseKey) {
+    // Two different failures used to share one misleading message.
+    var fail = null;
+    if (!CFG || !CFG.supabaseUrl || !CFG.supabaseKey) {
+      fail = 'ยังไม่ได้ตั้งค่า Supabase — ใส่ supabaseUrl และ supabaseKey ใน assets/config.js';
+    } else if (!window.supabase) {
+      fail = 'โหลดไลบรารี Supabase ไม่สำเร็จ — ตรวจการเชื่อมต่ออินเทอร์เน็ต แล้วกดรีเฟรชหน้านี้';
+    }
+    if (fail) {
       showGate(true);
       var err = $('loginError');
-      err.textContent = 'ยังไม่ได้ตั้งค่า Supabase — ใส่ supabaseUrl และ supabaseKey ใน assets/config.js';
+      err.textContent = fail;
       err.hidden = false;
+      $('btnLogin').disabled = true;
       return;
     }
 
