@@ -124,6 +124,8 @@ body{
   margin:10px 0 2px;font-size:10.5px;font-weight:800;letter-spacing:.14em;
   color:var(--muted-3);text-transform:none;
 }
+.side-hint{margin:2px 0 0;font-size:10.5px;line-height:1.4;color:var(--muted-3)}
+.sel:disabled{opacity:.75;cursor:default}
 
 .b{
   border:0;border-radius:var(--radius-sm);padding:9px 15px;
