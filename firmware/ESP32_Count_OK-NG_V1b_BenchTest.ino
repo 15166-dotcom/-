@@ -20,19 +20,39 @@
         - งานเครือข่ายทั้งหมดรันบน Core 0 แยกจากงานนับพัลส์ที่ยังอยู่บน
           Core 1 เหมือนเดิมทุกประการ — HTTP/TLS ใช้เวลาเป็นร้อย ๆ มิลลิวินาที
           ถ้าเรียกตรง ๆ ใน loop() จะไปกินเวลา debounce จนพลาดพัลส์ได้
-        - ส่ง event ผ่านคิว (FreeRTOS queue) จาก Core 1 ไป Core 0 —
-          Core 1 แค่ยัดคิวแล้วเดินต่อ ไม่รอเครือข่ายเลย
-        - รับคำสั่งจากแดชบอร์ด (เคลียร์ NG/LOCK ฯลฯ) ผ่านตาราง commands
-          มาตั้งเป็น flag แล้วให้ Core 1 เป็นคนสั่ง reset จริง (คนเดียวที่
-          แก้ไขตัวนับ กันข้อมูลชนกันระหว่าง 2 core)
-        - ตัวแปรตัวนับที่ทั้งสอง core แตะ ประกาศเป็น volatile
+        - ส่ง event ผ่านคิว (FreeRTOS queue) จาก Core 1 ไป Core 0
+        - รับคำสั่งจากแดชบอร์ดผ่านตาราง commands มาตั้งเป็น flag แล้วให้
+          Core 1 เป็นคนสั่ง reset จริง (คนเดียวที่แก้ไขตัวนับ)
+
+  V3 : เสริมความทนทานสำหรับใช้งานจริงในโรงงาน (WiFi หลุดบ่อย)
+        (สถานีนี้มีเครื่องเดียว — ยังไม่ใช้สถาปัตยกรรมหลายสถานี/MAC/RPC)
+        - Offline ring buffer จริง: event ที่ส่งไม่สำเร็จจะถูกส่งคืนหน้าคิว
+          พร้อม timestamp ตอนเกิดเหตุจริง (ไม่ใช่ตอนส่งสำเร็จ) ไม่มีข้อมูลหาย
+        - Retry แบบ exponential backoff (1s, 2s, 4s) ก่อนยอมแพ้แล้วเข้าคิว
+        - Watchdog timer (Task WDT) กันเครื่องค้าง ครอบทั้ง 2 core
+        - ปุ่มรีเซ็ต (resetPin1/resetPin2) เปลี่ยนจากกดครั้งเดียว ->
+          ต้องกดค้าง 2 วินาที กันโดนชนโดยไม่ตั้งใจ (ปุ่มนับ/เซนเซอร์กล่อง
+          ยังเป็น edge-trigger ทันทีเหมือนเดิม เพราะเป็นสัญญาณจากเครื่องจักร
+          ไม่ใช่คนกด)
+        - เลี่ยง String ต่อกันใน networkTask ที่วนถี่ ใช้ char buffer + snprintf
+        - เซฟ NVS แบบ throttle ชัดเจน: เปลี่ยนแล้วเซฟได้ห่างกันอย่างน้อย 5
+          วินาที ยกเว้น NG ที่เซฟทันทีเสมอ (ของเสียห้ามหายแม้ไฟดับ)
+        - แยกฟังก์ชันตามหน้าที่ (setupPins/handleSensors/updateOutputs/...)
+          อ่านง่ายขึ้น ไม่กระทบพฤติกรรมเดิม
 
   ** สำคัญ ** ESP32 เป็น 3.3V  อินพุตทุกเส้นต้องผ่าน optocoupler (เช่น PC817)
   ห้ามต่อสัญญาณ 12V/24V จากเครื่องจักรเข้าขาตรง ๆ
 
   บอร์ด : ESP32-WROOM-DA Module
   ไลบรารีจอ : ถ้าจอไม่ขึ้น ให้เปลี่ยนไปใช้ LiquidCrystal I2C ที่รองรับ esp32
-  ไลบรารีเพิ่มสำหรับ V2 : ArduinoJson (ติดตั้งผ่าน Library Manager)
+  ไลบรารีเพิ่มสำหรับ V2/V3 : ArduinoJson (6.x) — ติดตั้งผ่าน Library Manager
+  WiFi/HTTPClient/WiFiClientSecure/Preferences/esp_task_wdt มากับ ESP32 core
+  อยู่แล้ว ไม่ต้องติดตั้งเพิ่ม
+
+  หมายเหตุ esp_task_wdt: โค้ดนี้ใช้ API รูปแบบเก่า
+  (esp_task_wdt_init(seconds, panic)) ที่ใช้ได้กับ ESP32 Arduino core 2.x
+  ถ้าใช้ core 3.x ขึ้นไป ต้องเปลี่ยนเป็น esp_task_wdt_config_t ตาม
+  https://docs.espressif.com/projects/arduino-esp32/en/latest/api/watchdog.html
   ----------------------------------------------------------
 */
 
@@ -45,6 +65,7 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <time.h>
+#include <esp_task_wdt.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
@@ -57,12 +78,12 @@ LiquidCrystal_I2C lcd(0x27, LCD_COLS, LCD_ROWS);   // ถ้าจอไม่�
 const long PM_LIMIT  = 100000;     // รอบ PM (นับเป็นชิ้น)
 const long COUNT_MAX = 999999;     // เพดานของจอ %6ld
 
-// ==================== ขา GPIO ====================
+// ==================== ขา GPIO (ของจริงที่ต่อสายไว้ — ห้ามเปลี่ยนเลข) ====================
 // อินพุต (active-LOW ผ่าน optocoupler, ใช้ INPUT_PULLUP)
 const int countPin1      = 32;   // เดิม A0 : นับ OK
-const int resetPin1      = 33;   // เดิม A1 : รีเซ็ต OK
+const int resetPin1      = 33;   // เดิม A1 : รีเซ็ต OK (กดค้าง 2 วิ — ดู V3)
 const int countPin2      = 25;   // เดิม A2 : นับ NG
-const int resetPin2      = 26;   // เดิม A3 : รีเซ็ต NG
+const int resetPin2      = 26;   // เดิม A3 : รีเซ็ต NG (กดค้าง 2 วิ — ดู V3)
 const int ngBoxSensorPin = 27;   // เดิม A4 : เซนเซอร์กล่อง NG (E3F-DS10C4 NPN) มีชิ้นงาน=LOW
 
 // เอาต์พุต
@@ -72,7 +93,7 @@ const int lockPin     = 19;   // เดิม A5 : HIGH เมื่อ NG ค�
 
 // I2C : SDA = 21, SCL = 22
 
-// ==================== ตั้งค่าเครือข่าย (V2) ====================
+// ==================== ตั้งค่าเครือข่าย (V2/V3) ====================
 // TODO: ใส่ WiFi ของโรงงานจริงตรงนี้
 const char* WIFI_SSID = "ใส่ชื่อ WiFi";
 const char* WIFI_PASS = "ใส่รหัสผ่าน WiFi";
@@ -82,10 +103,17 @@ const char* WIFI_PASS = "ใส่รหัสผ่าน WiFi";
 const char* SUPABASE_URL = "https://yfygpxvprvhlprsivkkq.supabase.co";
 const char* SUPABASE_KEY = "sb_publishable_SmnBtZ_tK2f4fL3dIgUQow_cjWmWkwF";
 
-const unsigned long STATUS_PUSH_MS = 5000;    // heartbeat สถานะเครื่อง
-const unsigned long CMD_POLL_MS    = 3000;    // เช็คคำสั่งจากแดชบอร์ด
-const unsigned long RATE_WINDOW_MS = 30000;   // หน้าต่างคำนวณอัตราผลิต
-const unsigned long WIFI_RETRY_MS  = 5000;    // ห่างกันแค่ไหนถึงลองต่อ WiFi ใหม่
+const unsigned long STATUS_PUSH_MS   = 5000;    // heartbeat สถานะเครื่อง
+const unsigned long CMD_POLL_MS      = 3000;    // เช็คคำสั่งจากแดชบอร์ด
+const unsigned long RATE_WINDOW_MS   = 30000;   // หน้าต่างคำนวณอัตราผลิต
+const unsigned long WIFI_RETRY_MS    = 5000;    // ห่างกันแค่ไหนถึงลองต่อ WiFi ใหม่
+const unsigned long NVS_THROTTLE_MS  = 5000;    // เซฟ NVS ห่างกันอย่างน้อยเท่านี้ (V3)
+const unsigned long LONG_PRESS_MS    = 2000;    // ปุ่มรีเซ็ตต้องกดค้างเท่านี้ (V3)
+const uint32_t       WDT_TIMEOUT_S   = 30;      // watchdog timeout (V3) — ยาวพอให้ retry 3 ครั้งจบ
+
+// หน่วงก่อน retry แต่ละครั้ง (exponential backoff ตาม Prompt: 1s, 2s, 4s)
+const unsigned long HTTP_RETRY_DELAYS_MS[3] = { 1000, 2000, 4000 };
+const uint8_t HTTP_MAX_ATTEMPTS = 3;
 
 // event ที่จะขึ้นในตาราง event_log — ต้องตรงกับ okEvents/ngEvents ใน
 // assets/config.js ของแดชบอร์ด ("ok" คือ OK, "ng" คือ NG)
@@ -116,6 +144,16 @@ const char* eventName(EventCode e) {
 // assets/config.js -> CFG.commands ตัวอักษรใหญ่-เล็กต้องตรงเป๊ะ
 enum RemoteCmd : uint8_t { CMD_NONE = 0, CMD_RESET_NG, CMD_RESET_COUNT, CMD_FACTORY_RESET };
 
+// รายการในคิว offline (V3) — ไม่ใช้เป็นพารามิเตอร์ของฟังก์ชันไหนเลย
+// (จงใจ) เพื่อเลี่ยงบั๊ก auto-prototype ของ Arduino IDE กับ struct แบบที่
+// เคยเจอตอนพอร์ตมาเป็น ESP32 (ดูหมายเหตุ V1b ด้านบน) — ฟังก์ชันทุกตัวรับ
+// เฉพาะ field ข้างในเป็นพารามิเตอร์ธรรมดา ไม่รับ struct ทั้งก้อน
+struct QueuedEvent {
+  EventCode code;
+  bool hasTs;      // true ถ้า NTP sync แล้วตอนเกิด event (ใส่ timestamp จริงได้)
+  time_t ts;
+};
+
 // ==================== ตัวนับ ====================
 // volatile: ถูกเขียนจาก Core 1 (loop) และอ่านจาก Core 0 (networkTask)
 volatile long counter1 = 0;   // OK
@@ -125,17 +163,16 @@ volatile long counter3 = 0;   // NG Part Box (เซนเซอร์ยืน�
 // ==================== NVS ====================
 Preferences prefs;
 long savedOK = 0, savedNG = 0, savedBox = 0;
-unsigned long lastChangeMs = 0;
-const long SAVE_EVERY = 50;               // OK ครบ 50 ชิ้นค่อยเซฟ
-const unsigned long SAVE_IDLE = 8000;     // หรือไม่มีการเปลี่ยนแปลง 8 วินาที
+unsigned long lastSaveMs = 0;     // V3: ใช้คู่กับ NVS_THROTTLE_MS
+bool ngPendingUrgentSave = false; // V3: NG ต้องเซฟทันที ข้าม throttle
 
 // ==================== debounce แบบ non-blocking ====================
 // ใช้ array แทน struct เพื่อเลี่ยงปัญหา auto-prototype ของ Arduino IDE 1.8.x
 const uint8_t BTN_N = 4;
-const uint8_t B_COUNT1 = 0;   // นับ OK
-const uint8_t B_RESET1 = 1;   // รีเซ็ต OK
-const uint8_t B_COUNT2 = 2;   // นับ NG
-const uint8_t B_RESET2 = 3;   // รีเซ็ต NG
+const uint8_t B_COUNT1 = 0;   // นับ OK (edge-trigger ทันที)
+const uint8_t B_RESET1 = 1;   // รีเซ็ต OK (V3: ต้องกดค้าง LONG_PRESS_MS)
+const uint8_t B_COUNT2 = 2;   // นับ NG (edge-trigger ทันที)
+const uint8_t B_RESET2 = 3;   // รีเซ็ต NG (V3: ต้องกดค้าง LONG_PRESS_MS)
 
 const unsigned long DEBOUNCE_MS = 30;
 
@@ -143,6 +180,7 @@ int           btnPin[BTN_N];
 int           btnStable[BTN_N];
 int           btnLastRead[BTN_N];
 unsigned long btnTChange[BTN_N];
+bool          btnHeldFired[BTN_N];   // V3: กันยิงซ้ำระหว่างกดค้างครั้งเดียว
 
 // ==================== สถานะอื่น ====================
 unsigned long previousMillis = 0;
@@ -156,8 +194,8 @@ bool pmLimitNotified = false;  // กันส่ง event "ครบ PM" ซ้
 
 char shownRow[LCD_ROWS][LCD_COLS + 1];
 
-// ==================== สถานะเครือข่าย (V2, ใช้ข้ามสอง core) ====================
-QueueHandle_t eventQueue = NULL;
+// ==================== สถานะเครือข่าย (V2/V3, ใช้ข้ามสอง core) ====================
+QueueHandle_t eventQueue = NULL;   // คิวเก็บ QueuedEvent (อ่าน/เขียนแค่ผ่าน xQueueSend/Receive)
 TaskHandle_t  networkTaskHandle = NULL;
 volatile RemoteCmd pendingRemoteCmd = CMD_NONE;
 char lastEventName[24] = "none";   // ค่าล่าสุดที่ใส่ในคอลัมน์ status.event
@@ -167,19 +205,7 @@ bool timeSynced = false;
 void setup() {
   Serial.begin(115200);
 
-  pinMode(countPin1, INPUT_PULLUP);
-  pinMode(resetPin1, INPUT_PULLUP);
-  pinMode(countPin2, INPUT_PULLUP);
-  pinMode(resetPin2, INPUT_PULLUP);
-  pinMode(ngBoxSensorPin, INPUT_PULLUP);
-
-  pinMode(buzzerPin, OUTPUT);
-  pinMode(limitOutPin, OUTPUT);
-  pinMode(lockPin, OUTPUT);
-  digitalWrite(buzzerPin, LOW);
-  digitalWrite(limitOutPin, LOW);
-  digitalWrite(lockPin, LOW);
-
+  setupPins();
   btnInit(B_COUNT1, countPin1);
   btnInit(B_RESET1, resetPin1);
   btnInit(B_COUNT2, countPin2);
@@ -194,28 +220,18 @@ void setup() {
 
   showLoadingScreen();
 
-  // ---------- โหลดค่าจาก NVS ----------
-  prefs.begin("qacount", false);
-  counter1 = prefs.getLong("ok", 0);
-  counter2 = prefs.getLong("ng", 0);
-  counter3 = prefs.getLong("ngbox", 0);
-
-  if (counter1 < 0 || counter1 > COUNT_MAX) counter1 = 0;
-  if (counter2 < 0 || counter2 > COUNT_MAX) counter2 = 0;
-  if (counter3 < 0 || counter3 > COUNT_MAX) counter3 = 0;
-
-  savedOK = counter1; savedNG = counter2; savedBox = counter3;
-
-  if (counter1 > PM_LIMIT) { digitalWrite(limitOutPin, HIGH); pmLimitNotified = true; }
-
-  Serial.printf("Boot: OK=%ld  NG=%ld  BOX=%ld  PM_LIMIT=%ld\n",
-                counter1, counter2, counter3, PM_LIMIT);
-
+  loadState();
   updateDisplay();
 
+  // ---------- watchdog (V3) ----------
+  // ครอบทั้ง loop() หลัก (Core 1) และ networkTask (Core 0) ด้วย timeout
+  // เดียวกัน ตั้งยาวพอ (30s) ให้ retry เครือข่าย 3 ครั้งจบก่อนโดน panic
+  esp_task_wdt_init(WDT_TIMEOUT_S, true);
+  esp_task_wdt_add(NULL);   // ลงทะเบียน task ปัจจุบัน (loop) กับ WDT
+
   // ---------- เริ่มงานเครือข่าย (Core 0) แยกจากงานนับพัลส์ (Core 1) ----------
-  // ขนาดคิว 64 ช่อง เผื่อเน็ตหลุดแป๊บหนึ่งแล้วเกิด event รัว ๆ ไม่ให้หาย
-  eventQueue = xQueueCreate(64, sizeof(EventCode));
+  // ขนาดคิว 50 ช่องตาม Prompt เผื่อเน็ตหลุดแล้วเกิด event รัว ๆ ไม่ให้หาย
+  eventQueue = xQueueCreate(50, sizeof(QueuedEvent));
   xTaskCreatePinnedToCore(networkTask, "networkTask", 16384, NULL, 1, &networkTaskHandle, 0);
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
@@ -223,12 +239,36 @@ void setup() {
 
 // ==================== LOOP (Core 1 — งานนับพัลส์ ห้ามบล็อกด้วยเครือข่าย) ====================
 void loop() {
+  esp_task_wdt_reset();
 
-  // ---------- รับคำสั่งจากแดชบอร์ด (ถ้ามี) ----------
-  // pendingRemoteCmd ถูกตั้งจาก Core 0 (networkTask) หลัง poll ตาราง commands
-  // แต่ให้ Core 1 เป็นคนสั่ง reset จริง เพราะเป็นคนเดียวที่แก้ตัวนับ
+  // รับคำสั่งจากแดชบอร์ด (ถ้ามี) — pendingRemoteCmd ถูกตั้งจาก Core 0
   handleRemoteCommand();
 
+  handleSensors();     // อ่านปุ่ม/เซนเซอร์ + debounce + เพิ่มตัวนับ (V3: แยกเป็นฟังก์ชัน)
+  updateOutputs();      // ไฟ/ล็อก/บัซเซอร์ตามสถานะปัจจุบัน (V3: แยกเป็นฟังก์ชัน)
+
+  saveState();          // เซฟ NVS แบบ throttle (V3)
+  updateDisplay();
+}
+
+// ==================== ตั้งค่าขา I/O ====================
+void setupPins() {
+  pinMode(countPin1, INPUT_PULLUP);
+  pinMode(resetPin1, INPUT_PULLUP);
+  pinMode(countPin2, INPUT_PULLUP);
+  pinMode(resetPin2, INPUT_PULLUP);
+  pinMode(ngBoxSensorPin, INPUT_PULLUP);
+
+  pinMode(buzzerPin, OUTPUT);
+  pinMode(limitOutPin, OUTPUT);
+  pinMode(lockPin, OUTPUT);
+  digitalWrite(buzzerPin, LOW);
+  digitalWrite(limitOutPin, LOW);
+  digitalWrite(lockPin, LOW);
+}
+
+// ==================== อ่านปุ่ม/เซนเซอร์ + นับ (V3: แยกจาก loop เดิม) ====================
+void handleSensors() {
   // ---------- กระพริบตอน PM ครบ ----------
   if (counter1 > PM_LIMIT) {
     unsigned long now = millis();
@@ -238,12 +278,11 @@ void loop() {
     }
   }
 
-  // ---------- ตัวนับ OK ----------
+  // ---------- ตัวนับ OK (edge-trigger ทันที — เป็นพัลส์จากเครื่องจักร) ----------
   if (btnFell(B_COUNT1)) {
     if (counter1 <= PM_LIMIT) {
       counter1++;
       if (counter1 > COUNT_MAX) counter1 = 0;
-      lastChangeMs = millis();
       queueEvent(EVT_OK);
       if (counter1 > PM_LIMIT) {
         digitalWrite(limitOutPin, HIGH);
@@ -253,32 +292,36 @@ void loop() {
     }
   }
 
-  if (btnFell(B_RESET1)) {
+  // ---------- รีเซ็ต OK (V3: ต้องกดค้าง 2 วินาที) ----------
+  if (btnHeld(B_RESET1, LONG_PRESS_MS)) {
     counter1 = 0;
     digitalWrite(limitOutPin, LOW);
     blinkState = false;
     pmLimitNotified = false;
-    saveCounters();                 // รีเซ็ต = เซฟทันที
+    saveCounters();
+    lastSaveMs = millis();
     queueEvent(EVT_RESET_OK);
-    Serial.println("RESET OK");
+    Serial.println("RESET OK (กดค้าง 2 วิ)");
   }
 
-  // ---------- ตัวนับ NG ----------
+  // ---------- ตัวนับ NG (edge-trigger ทันที) ----------
   if (btnFell(B_COUNT2)) {
     counter2++;
     if (counter2 > COUNT_MAX) counter2 = 0;
     ngBoxPending = true;            // เริ่มรอเซนเซอร์ยืนยัน
-    saveCounters();                 // NG เซฟทันที
+    ngPendingUrgentSave = true;     // ของเสียห้ามหาย — ข้าม throttle รอบถัดไป
     queueEvent(EVT_NG);
     Serial.printf("NG -> %ld (รอใส่กล่อง)\n", counter2);
   }
 
-  if (btnFell(B_RESET2)) {
+  // ---------- รีเซ็ต NG (V3: ต้องกดค้าง 2 วินาที) ----------
+  if (btnHeld(B_RESET2, LONG_PRESS_MS)) {
     counter2 = 0;
     ngBoxPending = false;
     saveCounters();
+    lastSaveMs = millis();
     queueEvent(EVT_RESET_NG);
-    Serial.println("RESET NG");
+    Serial.println("RESET NG (กดค้าง 2 วิ)");
   }
 
   // ---------- เซนเซอร์กล่อง NG ----------
@@ -287,27 +330,26 @@ void loop() {
     ngBoxPending = false;
     counter3++;
     if (counter3 > COUNT_MAX) counter3 = 0;
-    saveCounters();
+    ngPendingUrgentSave = true;
     queueEvent(EVT_NG_BOXED);
     Serial.printf("NG BOXED -> %ld\n", counter3);
   }
   lastSensorLow = sensorLow;
+}
 
-  // ---------- ขาล็อกระบบ ----------
+// ==================== ไฟ/ล็อก/บัซเซอร์ (V3: แยกจาก loop เดิม) ====================
+// LOCK ตัดสินจากสถานะในบอร์ดล้วน ๆ (ngBoxPending) ไม่รอคำตอบจาก server เด็ดขาด
+void updateOutputs() {
   digitalWrite(lockPin, ngBoxPending ? HIGH : LOW);
 
-  // ---------- บัซเซอร์ ----------
   bool wantBuzzer = (counter1 > PM_LIMIT && blinkState) || ngBoxPending;
   if (wantBuzzer != lastBuzzerState) {
     digitalWrite(buzzerPin, wantBuzzer ? HIGH : LOW);
     lastBuzzerState = wantBuzzer;
   }
-
-  saveIfNeeded();
-  updateDisplay();
 }
 
-// ==================== รับคำสั่งจากแดชบอร์ด (V2) ====================
+// ==================== รับคำสั่งจากแดชบอร์ด ====================
 // เรียกจาก loop() (Core 1) ทุกรอบ — pendingRemoteCmd ถูกตั้งค่าจาก Core 0
 void handleRemoteCommand() {
   if (pendingRemoteCmd == CMD_NONE) return;
@@ -319,6 +361,7 @@ void handleRemoteCommand() {
       counter2 = 0;
       ngBoxPending = false;
       saveCounters();
+      lastSaveMs = millis();
       queueEvent(EVT_RESET_NG);
       Serial.println("[REMOTE] RESET NG");
       break;
@@ -329,6 +372,7 @@ void handleRemoteCommand() {
       blinkState = false;
       pmLimitNotified = false;
       saveCounters();
+      lastSaveMs = millis();
       queueEvent(EVT_RESET_OK);
       Serial.println("[REMOTE] RESET OK");
       break;
@@ -340,6 +384,7 @@ void handleRemoteCommand() {
       blinkState = false;
       pmLimitNotified = false;
       saveCounters();
+      lastSaveMs = millis();
       queueEvent(EVT_FACTORY_RESET);
       Serial.println("[REMOTE] FACTORY RESET");
       break;
@@ -355,9 +400,10 @@ void btnInit(uint8_t i, int pin) {
   btnStable[i]   = HIGH;
   btnLastRead[i] = HIGH;
   btnTChange[i]  = 0;
+  btnHeldFired[i] = false;
 }
 
-// คืน true หนึ่งครั้งเมื่อเกิดขอบขาลง (HIGH -> LOW)
+// คืน true หนึ่งครั้งเมื่อเกิดขอบขาลง (HIGH -> LOW) — ใช้กับสัญญาณจากเครื่องจักร
 bool btnFell(uint8_t i) {
   int r = digitalRead(btnPin[i]);
   if (r != btnLastRead[i]) {
@@ -373,7 +419,49 @@ bool btnFell(uint8_t i) {
   return false;
 }
 
-// ==================== เซฟค่าลง NVS ====================
+// V3: คืน true "หนึ่งครั้ง" เมื่อกดค้าง (LOW ต่อเนื่อง) ครบ holdMs
+// ใช้กับปุ่มที่คนกด (รีเซ็ต) กันโดนชนโดยไม่ตั้งใจ — ต้องปล่อยก่อนถึงจะกดติดใหม่ได้
+bool btnHeld(uint8_t i, unsigned long holdMs) {
+  int r = digitalRead(btnPin[i]);
+  if (r != btnLastRead[i]) {
+    btnLastRead[i] = r;
+    btnTChange[i]  = millis();
+    return false;
+  }
+  if (millis() - btnTChange[i] < DEBOUNCE_MS) return false;
+
+  if (r != btnStable[i]) {
+    btnStable[i] = r;
+    if (r == HIGH) btnHeldFired[i] = false;   // ปล่อยปุ่มแล้ว พร้อมกดรอบใหม่
+  }
+
+  if (btnStable[i] == LOW && !btnHeldFired[i] &&
+      (millis() - btnTChange[i] >= holdMs)) {
+    btnHeldFired[i] = true;
+    return true;
+  }
+  return false;
+}
+
+// ==================== NVS ====================
+void loadState() {
+  prefs.begin("qacount", false);
+  counter1 = prefs.getLong("ok", 0);
+  counter2 = prefs.getLong("ng", 0);
+  counter3 = prefs.getLong("ngbox", 0);
+
+  if (counter1 < 0 || counter1 > COUNT_MAX) counter1 = 0;
+  if (counter2 < 0 || counter2 > COUNT_MAX) counter2 = 0;
+  if (counter3 < 0 || counter3 > COUNT_MAX) counter3 = 0;
+
+  savedOK = counter1; savedNG = counter2; savedBox = counter3;
+
+  if (counter1 > PM_LIMIT) { digitalWrite(limitOutPin, HIGH); pmLimitNotified = true; }
+
+  Serial.printf("Boot: OK=%ld  NG=%ld  BOX=%ld  PM_LIMIT=%ld\n",
+                counter1, counter2, counter3, PM_LIMIT);
+}
+
 void saveCounters() {
   prefs.putLong("ok",    counter1);
   prefs.putLong("ng",    counter2);
@@ -381,14 +469,20 @@ void saveCounters() {
   savedOK = counter1; savedNG = counter2; savedBox = counter3;
 }
 
-void saveIfNeeded() {
-  if (counter1 == savedOK && counter2 == savedNG && counter3 == savedBox) return;
+// V3: เซฟแบบ throttle ชัดเจน — เปลี่ยนแล้วเซฟห่างกันอย่างน้อย NVS_THROTTLE_MS
+// ยกเว้น NG/NG BOXED ที่ตั้ง ngPendingUrgentSave ไว้ให้เซฟทันทีข้าม throttle
+// (ของเสียห้ามหายแม้ไฟดับ ตรงกับพฤติกรรมเดิมของไฟล์ V1b)
+void saveState() {
+  if (counter1 == savedOK && counter2 == savedNG && counter3 == savedBox) {
+    ngPendingUrgentSave = false;
+    return;
+  }
 
-  bool bigGap = (counter1 - savedOK >= SAVE_EVERY) || (savedOK - counter1 >= SAVE_EVERY);
-  bool idle   = (millis() - lastChangeMs >= SAVE_IDLE);
-
-  if (bigGap || idle) {
+  bool timeUp = (millis() - lastSaveMs >= NVS_THROTTLE_MS);
+  if (ngPendingUrgentSave || timeUp) {
     saveCounters();
+    lastSaveMs = millis();
+    ngPendingUrgentSave = false;
     Serial.println("[NVS] saved");
   }
 }
@@ -470,16 +564,21 @@ void updateDisplay() {
 }
 
 // ============================================================
-// ====================  V2 : เครือข่าย  =======================
+// ====================  V2/V3 : เครือข่าย  =====================
 // ทุกฟังก์ชันในส่วนนี้รันบน Core 0 (จาก networkTask) เท่านั้น
 // ไม่มีอะไรในนี้ถูกเรียกจาก loop() ตรง ๆ ยกเว้นผ่านคิว/flag
 // ============================================================
 
+// ใส่ event ลงคิว — เรียกจาก Core 1 เท่านั้น, ไม่รอ/ไม่บล็อก (timeout=0)
 void queueEvent(EventCode e) {
   strncpy(lastEventName, eventName(e), sizeof(lastEventName) - 1);
   lastEventName[sizeof(lastEventName) - 1] = '\0';
-  EventCode copy = e;
-  xQueueSend(eventQueue, &copy, 0);   // timeout=0 กันไม่ให้ loop() (Core 1) สะดุด
+
+  QueuedEvent qe;
+  qe.code = e;
+  qe.hasTs = timeSynced;
+  qe.ts = timeSynced ? time(nullptr) : 0;
+  xQueueSend(eventQueue, &qe, 0);
 }
 
 void ensureWiFi() {
@@ -502,27 +601,56 @@ void ensureTimeSynced() {
   }
 }
 
-String nowISO() {
-  time_t now = time(nullptr);
+// แปลง epoch -> ISO8601 UTC ("...Z") ลง buffer ที่ให้มา (V3: เลี่ยง String)
+void isoFromEpoch(time_t t, char* out, size_t outLen) {
   struct tm tmInfo;
-  gmtime_r(&now, &tmInfo);
-  char buf[25];
-  strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", &tmInfo);
-  return String(buf);
+  gmtime_r(&t, &tmInfo);
+  strftime(out, outLen, "%Y-%m-%dT%H:%M:%SZ", &tmInfo);
+}
+
+// V3: ส่ง HTTP พร้อม retry แบบ exponential backoff (1s, 2s, 4s ตาม Prompt)
+// คืน true ถ้าสำเร็จ (2xx) ภายใน HTTP_MAX_ATTEMPTS ครั้ง
+bool httpSendWithRetry(const char* method, const String& url, const String& body,
+                        bool withPreferMinimal) {
+  for (uint8_t attempt = 0; attempt < HTTP_MAX_ATTEMPTS; attempt++) {
+    esp_task_wdt_reset();   // กัน watchdog หลุดระหว่างรอ backoff/retry
+
+    WiFiClientSecure client;
+    client.setInsecure();   // ใช้งานภายในโรงงาน — ถ้าต้องการเข้มขึ้นให้ปักหมุด root CA ของ Supabase
+    HTTPClient http;
+    http.setTimeout(4000);
+    http.begin(client, url);
+    http.addHeader("apikey", SUPABASE_KEY);
+    http.addHeader("Authorization", String("Bearer ") + SUPABASE_KEY);
+    http.addHeader("Content-Type", "application/json");
+    if (withPreferMinimal) http.addHeader("Prefer", "return=minimal");
+
+    int code;
+    if (strcmp(method, "PATCH") == 0) code = http.PATCH(body);
+    else if (strcmp(method, "POST") == 0) code = http.POST(body);
+    else code = http.sendRequest(method, body);
+    http.end();
+
+    if (code >= 200 && code < 300) {
+      if (attempt > 0) Serial.printf("[Supabase] สำเร็จหลัง retry ครั้งที่ %d\n", attempt + 1);
+      return true;
+    }
+
+    Serial.printf("[Supabase] %s ผิดพลาด code=%d (ครั้งที่ %d/%d)\n",
+                  method, code, attempt + 1, HTTP_MAX_ATTEMPTS);
+
+    if (attempt < HTTP_MAX_ATTEMPTS - 1) {
+      vTaskDelay(pdMS_TO_TICKS(HTTP_RETRY_DELAYS_MS[attempt]));
+    }
+  }
+  return false;
 }
 
 void supaPushStatus(float rate) {
   if (WiFi.status() != WL_CONNECTED || !timeSynced) return;
 
-  WiFiClientSecure client;
-  client.setInsecure();   // ใช้งานภายในโรงงาน — ถ้าต้องการเข้มขึ้นให้ปักหมุด root CA ของ Supabase
-  HTTPClient http;
-  http.setTimeout(4000);
-  http.begin(client, String(SUPABASE_URL) + "/rest/v1/status?id=eq.1");
-  http.addHeader("apikey", SUPABASE_KEY);
-  http.addHeader("Authorization", String("Bearer ") + SUPABASE_KEY);
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("Prefer", "return=minimal");
+  char tsBuf[25];
+  isoFromEpoch(time(nullptr), tsBuf, sizeof(tsBuf));
 
   StaticJsonDocument<512> doc;
   doc["setting"]        = PM_LIMIT;
@@ -537,39 +665,35 @@ void supaPushStatus(float rate) {
   doc["lock_old"]       = false;
   doc["lock_auto"]      = ngBoxPending;
   doc["event"]          = lastEventName;
-  doc["device_seen_at"] = nowISO();
+  doc["device_seen_at"] = tsBuf;
 
   String body;
   serializeJson(doc, body);
-  int code = http.PATCH(body);
-  if (code < 200 || code >= 300) {
-    Serial.printf("[Supabase] status PATCH ผิดพลาด code=%d\n", code);
-  }
-  http.end();
+
+  String url = String(SUPABASE_URL) + "/rest/v1/status?id=eq.1";
+  httpSendWithRetry("PATCH", url, body, true);
+  // ถ้าล้มเหลวครบ 3 ครั้งก็ปล่อยผ่าน — heartbeat รอบถัดไปอีก 5 วิจะลองใหม่เอง
+  // ไม่ต้อง queue เพราะ status เป็น "สถานะล่าสุด" ไม่ใช่ event ที่ห้ามหาย
 }
 
-void supaLogEvent(const char* name) {
-  if (WiFi.status() != WL_CONNECTED) return;
+// ส่ง event หนึ่งรายการที่ดึงออกจากคิวแล้ว — พารามิเตอร์เป็นค่าธรรมดา
+// ไม่ใช่ struct (ดูหมายเหตุ QueuedEvent ด้านบน)
+bool supaLogEvent(const char* name, bool hasTs, time_t ts) {
+  if (WiFi.status() != WL_CONNECTED) return false;
 
-  WiFiClientSecure client;
-  client.setInsecure();
-  HTTPClient http;
-  http.setTimeout(4000);
-  http.begin(client, String(SUPABASE_URL) + "/rest/v1/event_log");
-  http.addHeader("apikey", SUPABASE_KEY);
-  http.addHeader("Authorization", String("Bearer ") + SUPABASE_KEY);
-  http.addHeader("Content-Type", "application/json");
-
-  StaticJsonDocument<128> doc;
+  StaticJsonDocument<160> doc;
   doc["event"] = name;
+  if (hasTs) {
+    char tsBuf[25];
+    isoFromEpoch(ts, tsBuf, sizeof(tsBuf));
+    doc["created_at"] = tsBuf;   // เก็บเวลาที่เกิดเหตุจริง ไม่ใช่เวลาที่ส่งสำเร็จ
+  }
+
   String body;
   serializeJson(doc, body);
 
-  int code = http.POST(body);
-  if (code < 200 || code >= 300) {
-    Serial.printf("[Supabase] event_log POST ผิดพลาด (%s) code=%d\n", name, code);
-  }
-  http.end();
+  String url = String(SUPABASE_URL) + "/rest/v1/event_log";
+  return httpSendWithRetry("POST", url, body, false);
 }
 
 void supaPollCommandsAndDispatch() {
@@ -607,17 +731,9 @@ void supaPollCommandsAndDispatch() {
 
         // มาร์คว่ารับแล้วทันที — ยอมรับความเสี่ยงเล็กน้อยถ้าไฟดับพอดีจังหวะนี้
         // (การรีเซ็ตไม่ใช่งาน safety-critical เหมือนตัวนับ)
-        HTTPClient httpMark;
-        WiFiClientSecure clientMark;
-        clientMark.setInsecure();
-        httpMark.setTimeout(4000);
-        httpMark.begin(clientMark, String(SUPABASE_URL) + "/rest/v1/commands?id=eq." + String(id));
-        httpMark.addHeader("apikey", SUPABASE_KEY);
-        httpMark.addHeader("Authorization", String("Bearer ") + SUPABASE_KEY);
-        httpMark.addHeader("Content-Type", "application/json");
-        httpMark.addHeader("Prefer", "return=minimal");
-        httpMark.PATCH("{\"processed\": true}");
-        httpMark.end();
+        char patchUrl[160];
+        snprintf(patchUrl, sizeof(patchUrl), "%s/rest/v1/commands?id=eq.%ld", SUPABASE_URL, id);
+        httpSendWithRetry("PATCH", String(patchUrl), "{\"processed\": true}", true);
       }
     }
   }
@@ -626,18 +742,28 @@ void supaPollCommandsAndDispatch() {
 
 // งานหลักของ Core 0 — วนอ่านคิว event, ส่ง heartbeat, เช็คคำสั่ง
 void networkTask(void* param) {
+  esp_task_wdt_add(NULL);   // ลงทะเบียนตัวเองกับ watchdog ด้วย (คนละ task จาก loop)
+
   unsigned long lastStatusPush = 0, lastCmdPoll = 0, lastRateCalc = millis();
   long lastOkForRate = counter1;
   float currentRate = 0;
 
   for (;;) {
+    esp_task_wdt_reset();
+
     ensureWiFi();
     ensureTimeSynced();
 
-    // ส่ง event ที่ค้างอยู่ในคิวทั้งหมด — อ่านจากคิวเท่านั้น ไม่แตะ loop()
-    EventCode evt;
-    while (xQueueReceive(eventQueue, &evt, 0) == pdTRUE) {
-      supaLogEvent(eventName(evt));
+    // ส่ง event ที่ค้างอยู่ในคิว — ถ้าตัวไหนส่งไม่สำเร็จ (WiFi หลุดกลางทาง)
+    // ให้ใส่คืนหน้าคิวแล้วหยุดรอบนี้ กันยิงรัวใส่เน็ตที่ยังไม่กลับมา และ
+    // รักษาลำดับ event ไว้ไม่ให้สลับกัน (V3: ring buffer จริง ไม่ทิ้งข้อมูล)
+    QueuedEvent qe;
+    while (xQueueReceive(eventQueue, &qe, 0) == pdTRUE) {
+      bool ok = supaLogEvent(eventName(qe.code), qe.hasTs, qe.ts);
+      if (!ok) {
+        xQueueSendToFront(eventQueue, &qe, 0);
+        break;
+      }
     }
 
     // คำนวณอัตราการผลิตทุก RATE_WINDOW_MS
