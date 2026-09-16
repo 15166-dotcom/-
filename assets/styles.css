@@ -140,6 +140,7 @@ body{
 .b-soft{background:var(--soft);color:var(--muted)}
 .b-ghost-light{background:rgba(255,255,255,.2);color:#fff}
 .b-sm{padding:7px 12px;font-size:12px}
+.b-block{width:100%;margin-top:6px}
 .b:disabled{opacity:.45;cursor:not-allowed}
 
 .nav{display:flex;flex-direction:column;gap:2px}
